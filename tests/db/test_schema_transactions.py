@@ -75,3 +75,14 @@ def test_autoincrement_id(db):
         r[0] for r in db.execute("SELECT id FROM transactions ORDER BY id;")
     ]
     assert ids == [1, 2]
+
+def test_external_id_unique_dup_dropped(db: sqlite3.Connection):
+    db.execute("""
+        INSERT INTO transactions (name, amount, direction, external_id)
+        VALUES ('txn1', 1000, 'IN', 'ext-123');
+    """)
+
+    db.execute("""
+        INSERT INTO transactions (name, amount, direction, external_id)
+        VALUES ('txn2', 2000, 'OUT', 'ext-123');
+    """)

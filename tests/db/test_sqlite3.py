@@ -91,7 +91,7 @@ def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
 def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
     ts = "2024-01-01 10:00:00"
     db.insert_transaction(
-        PartialTransaction("Salary", 3000, TransactionDirection.IN, None, ts))
+        PartialTransaction("Salary", 3000, TransactionDirection.IN, None, occurred_at=ts))
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()

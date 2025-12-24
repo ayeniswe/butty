@@ -21,6 +21,7 @@ class Transaction:
     amount: int
     direction: TransactionDirection
     occurred_at: datetime
+    external_id: str | None
     note: str | None
 
 
@@ -30,6 +31,7 @@ class PartialTransaction:
     amount: int
     direction: TransactionDirection
     note: str | None = None
+    external_id: str | None = None
     occurred_at: datetime | None = None
 
 
