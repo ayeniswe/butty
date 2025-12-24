@@ -5,5 +5,6 @@ CREATE TABLE
         amount INTEGER NOT NULL, -- stored in cents (e.g. $12.34 = 1234)
         direction TEXT NOT NULL CHECK (direction IN ('IN', 'OUT')),
         occurred_at TEXT NOT NULL DEFAULT (datetime ('now')),
+        external_id TEXT UNIQUE ON CONFLICT IGNORE,
         note TEXT
     );
