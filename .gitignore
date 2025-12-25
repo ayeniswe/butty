@@ -4,3 +4,5 @@ __pycache__
 .vscode
 coverage.xml
 .DS_Store
+.env
+*.sqlite*
