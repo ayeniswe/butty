@@ -162,10 +162,9 @@ class Sqlite3:
     def untag_budget(self, budget_id: int, tag_id: int):
         with self.engine.begin() as conn:
             conn.execute(
-                delete(self.budgets_tags).where(
-                    self.budgets_tags.c.tag_id == tag_id
-                    and self.budgets_tags.c.budget_id == budget_id
-                )
+                delete(self.budgets_tags)
+                .where(self.budgets_tags.c.tag_id == tag_id)
+                .where(self.budgets_tags.c.budget_id == budget_id)
             )
 
     def insert_plaid_account(self, token: str) -> int:
@@ -238,8 +237,7 @@ class Sqlite3:
     def delete_budget_transaction(self, budget_id: int, transaction_id: int):
         with self.engine.begin() as conn:
             conn.execute(
-                delete(self.budgets_transactions).where(
-                    self.budgets_transactions.c.transaction_id == transaction_id
-                    and self.budgets_transactions.c.budget_id == budget_id
-                )
+                delete(self.budgets_transactions)
+                .where(self.budgets_transactions.c.transaction_id == transaction_id)
+                .where(self.budgets_transactions.c.budget_id == budget_id)
             )
