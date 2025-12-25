@@ -12,10 +12,11 @@ import FinanceKitUI
 
 // MARK: - Export Model (JSON-safe)
 struct ExportTransaction: Codable {
-    let external_id: String
+    let id: String
+    let account_id: String
     let name: String
     let amount: Decimal
-    let direction: String
+    let direction: Direction
     let date: Date
 }
 enum Direction: String, Codable {
@@ -29,6 +30,8 @@ struct ContentView: View {
     @State private var selectedTransactions: [FinanceKit.Transaction] = []
     @State private var statusMessage: String?
 
+    @AppStorage("backend_url") private var backendURL: String = "http://samsons-macbook-air.local:8000/"
+
     private let financeStore = FinanceStore.shared
 
     var body: some View {
@@ -38,6 +41,12 @@ struct ContentView: View {
             Text("Transactions")
                 .font(.title2)
                 .fontWeight(.semibold)
+
+            TextField("Backend URL", text: $backendURL)
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
 
             // Action Row
             HStack(spacing: 12) {
@@ -87,7 +96,7 @@ struct ContentView: View {
 
         let exported = mapTransactions(selectedTransactions)
 
-        guard let url = URL(string: "http://samsons-macbook-air.local:8000/transactions") else {
+        guard let url = URL(string: backendURL) else {
             statusMessage = "Invalid backend URL"
             isSyncing = false
             return
@@ -120,11 +129,12 @@ struct ContentView: View {
     private func mapTransactions(_ transactions: [FinanceKit.Transaction]) -> [ExportTransaction] {
         transactions.map { tx in
             return ExportTransaction(
-                external_id: tx.id.uuidString,
+                id: tx.id.uuidString,
+                account_id: tx.accountID.uuidString,
                 name: tx.merchantName
                     ?? tx.transactionDescription,
                 amount: tx.transactionAmount.amount,
-                direction: tx.creditDebitIndicator == .credit ? "IN" : "OUT",
+                direction: tx.creditDebitIndicator == .credit ? Direction.IN : Direction.OUT,
                 date: tx.transactionDate
             )
         }

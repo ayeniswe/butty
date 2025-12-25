@@ -13,6 +13,16 @@ class TransactionDirection(StrEnum):
     IN = "IN"
     OUT = "OUT"
 
+class TransactionSource(StrEnum):
+    PLAID = "PLAID"
+    APPLE = "APPLE"
+
+class TransactionType(StrEnum):
+    CREDIT = "CREDIT"
+    DEPOSITORY = "DEPOSITORY"
+    LOAN = "LOAN"
+    INVESTMENT = "INVESTMENT"
+
 
 @dataclass(frozen=True)
 class Transaction:
@@ -21,6 +31,7 @@ class Transaction:
     amount: int
     direction: TransactionDirection
     occurred_at: datetime
+    account_id: int
     external_id: str | None
     note: str | None
 
@@ -30,6 +41,7 @@ class PartialTransaction:
     name: str
     amount: int
     direction: TransactionDirection
+    account_id: int 
     note: str | None = None
     external_id: str | None = None
     occurred_at: datetime | None = None
@@ -54,9 +66,20 @@ class Tag:
 class PlaidAccount:
     id: int
     token: str
-    name: str
 
 @dataclass(frozen=True)
 class Account:
     id: int
+    external_id: str
+    account_type: str
+    source: TransactionSource
     name: str
+    plaid_id: int | None
+
+@dataclass(frozen=True)
+class PartialAccount:
+    external_id: str
+    source: TransactionSource
+    account_type: str
+    name: str
+    plaid_id: int | None = None

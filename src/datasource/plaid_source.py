@@ -11,6 +11,8 @@ from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUse
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.country_code import CountryCode
 from plaid.model.products import Products
+from plaid.model.accounts_get_request import AccountsGetRequest
+from plaid.model.account_base import AccountBase
 
 
 class Plaid:
@@ -34,7 +36,8 @@ class Plaid:
             language="en",
             country_codes=[CountryCode("US")],
             user=LinkTokenCreateRequestUser(
-                client_user_id="Butty"  # Since personal will just be the same all around
+                client_user_id=
+                "Butty"  # Since personal will just be the same all around
             ),
             products=[Products("transactions")],
         )
@@ -59,3 +62,8 @@ class Plaid:
             transactions += response['added']
 
         return transactions
+
+    def get_accounts(self, access_token: str) -> List[AccountBase]:
+        request = AccountsGetRequest(access_token=access_token)
+        response = self.client.accounts_get(request)
+        return response["accounts"]

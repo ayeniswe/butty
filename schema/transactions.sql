@@ -1,4 +1,4 @@
-CREATE TABLE
+CREATE TABLE IF NOT EXISTS
     transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -6,5 +6,7 @@ CREATE TABLE
         direction TEXT NOT NULL CHECK (direction IN ('IN', 'OUT')),
         occurred_at TEXT NOT NULL DEFAULT (datetime ('now')),
         external_id TEXT UNIQUE ON CONFLICT IGNORE,
-        note TEXT
+        account_id INTEGER NOT NULL,
+        note TEXT,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
     );

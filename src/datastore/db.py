@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 from sqlalchemy import MetaData, create_engine, delete, update, insert, select
-from .model import Budget, PartialTransaction, Tag, Transaction
+from .model import Account, Budget, PartialAccount, PartialTransaction, PlaidAccount, Tag, Transaction
 
 
 class Sqlite3:
@@ -70,10 +70,12 @@ class Sqlite3:
                 "amount": obj.amount,
                 "direction": obj.direction,
                 "note": obj.note,
+                "external_id": obj.external_id,
+                "account_id": obj.account_id,
             }
             if obj.occurred_at:
                 values["occurred_at"] = obj.occurred_at
-            conn.execute(insert(self.transactions).values(values))
+            conn.execute(insert(self.transactions).values(values).prefix_with("OR IGNORE"))
 
     def delete_transaction(self, id: int):
         with self.engine.begin() as conn:
@@ -126,10 +128,11 @@ class Sqlite3:
                     self.budgets_tags.c.tag_id == tag_id
                     and self.budgets_tags.c.budget_id == budget_id))
 
-    def insert_plaid_account(self, token: str, name: str):
+    def insert_plaid_account(self, token: str) -> int:
         with self.engine.begin() as conn:
-            conn.execute(
-                insert(self.plaid_accounts).values(token=token, name=name))
+            result = conn.execute(
+                insert(self.plaid_accounts).values(token=token))
+            return result.inserted_primary_key[0]
 
     def delete_plaid_account(self, id: int):
         with self.engine.begin() as conn:
@@ -137,36 +140,48 @@ class Sqlite3:
                 delete(
                     self.plaid_accounts).where(self.plaid_accounts.c.id == id))
 
-    def select_plaid_account(self, id: int) -> Tag:
+    def select_plaid_account(self, id: int) -> PlaidAccount:
         with self.engine.begin() as conn:
             return conn.execute(
                 select(self.plaid_accounts).where(
                     self.plaid_accounts.c.id == id)).fetchone()
 
-    def get_plaid_accounts(self) -> Tag:
+    def get_plaid_accounts(self) -> List[PlaidAccount]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.plaid_accounts)).fetchall()
 
-    def insert_account(self, name: str, plaid_id: int | None = None):
-        values = {"name": name}
-        if plaid_id:
-            values["plaid_id"] = plaid_id
+    def insert_account(self, obj: PartialAccount) -> int:
+        values = {
+            "name": obj.name,
+            "external_id": obj.external_id,
+            "source": obj.source,
+            "account_type": obj.account_type
+        }
+        if obj.plaid_id:
+            values["plaid_id"] = obj.plaid_id
         with self.engine.begin() as conn:
-            conn.execute(
-                insert(self.accounts).values(values))
+            result = conn.execute(insert(self.accounts).values(values).prefix_with("OR IGNORE"))
+            return result.inserted_primary_key[0]
 
     def delete_account(self, id: int):
         with self.engine.begin() as conn:
-            conn.execute(
-                delete(
-                    self.accounts).where(self.accounts.c.id == id))
+            conn.execute(delete(self.accounts).where(self.accounts.c.id == id))
 
-    def select_account(self, id: int) -> Tag:
+    def select_account(self, id: int) -> Account:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(
+                    self.accounts).where(self.accounts.c.id == id)).fetchone()
+
+    def select_account_by_ext_id(self, id: int) -> Account:
+        # Could class with duplicaties on re-link
+        # so we only care about first since
+        # data we care about should be identical
         with self.engine.begin() as conn:
             return conn.execute(
                 select(self.accounts).where(
-                    self.accounts.c.id == id)).fetchone()
+                    self.accounts.c.external_id == id)).first()
 
-    def get_accounts(self) -> Tag:
+    def get_accounts(self) -> List[Account]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.accounts)).fetchall()

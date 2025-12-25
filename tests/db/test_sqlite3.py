@@ -2,7 +2,14 @@ import pytest
 from sqlalchemy import select
 
 from datastore.db import Sqlite3
-from datastore.model import Budget, PartialTransaction, Tag, TransactionDirection
+from datastore.model import (
+    Budget,
+    PartialTransaction,
+    PartialAccount,
+    Tag,
+    TransactionDirection,
+    TransactionSource,
+)
 
 
 @pytest.fixture
@@ -79,20 +86,42 @@ def test_get_budgets(db: Sqlite3):
 
 
 def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     with db.engine.begin() as conn:
         db.insert_transaction(
-            PartialTransaction("Coffee", 45, TransactionDirection.OUT))
-
+            PartialTransaction("Coffee",
+                               45,
+                               TransactionDirection.OUT,
+                               external_id="ext-45",
+                               account_id=1))
         row = conn.execute(select(db.transactions)).first()
 
     assert row.occurred_at is not None
 
 
 def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     ts = "2024-01-01 10:00:00"
     db.insert_transaction(
-        PartialTransaction("Salary", 3000, TransactionDirection.IN, None, occurred_at=ts))
-
+        PartialTransaction("Salary",
+                           3000,
+                           TransactionDirection.IN,
+                           occurred_at=ts,
+                           account_id=1))
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
@@ -100,8 +129,19 @@ def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
 
 
 def test_update_transaction_note(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     db.insert_transaction(
-        PartialTransaction("Groceries", 50, TransactionDirection.OUT))
+        PartialTransaction("Groceries",
+                           50,
+                           TransactionDirection.OUT,
+                           account_id=1), )
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
@@ -113,8 +153,19 @@ def test_update_transaction_note(db: Sqlite3):
 
 
 def test_delete_transaction(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     db.insert_transaction(
-        PartialTransaction("Delete Me", 1, TransactionDirection.OUT))
+        PartialTransaction("Delete Me",
+                           1,
+                           TransactionDirection.OUT,
+                           account_id=1), )
     db.delete_transaction(1)
 
     with db.engine.begin() as conn:
@@ -122,18 +173,44 @@ def test_delete_transaction(db: Sqlite3):
 
 
 def test_select_transaction(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     db.insert_transaction(
-        PartialTransaction("Trans", 100, TransactionDirection.OUT))
+        PartialTransaction("Trans",
+                           100,
+                           TransactionDirection.OUT,
+                           account_id=1), )
     db.select_transaction(1) is not None
 
 
 def test_get_transactions(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
     db.insert_transaction(
-        PartialTransaction("Trans 1", 1, TransactionDirection.OUT))
+        PartialTransaction("Trans 1",
+                           1,
+                           TransactionDirection.OUT,
+                           account_id=1), )
     db.insert_transaction(
-        PartialTransaction("Trans 2", 2, TransactionDirection.IN))
+        PartialTransaction("Trans 2", 2, TransactionDirection.IN,
+                           account_id=1), )
     db.insert_transaction(
-        PartialTransaction("Trans 3", 3, TransactionDirection.OUT))
+        PartialTransaction("Trans 3",
+                           3,
+                           TransactionDirection.OUT,
+                           account_id=1), )
     assert len(db.get_transactions()) == 3
 
 
@@ -187,6 +264,7 @@ def test_get_tags(db: Sqlite3):
 # Budget <-> Tag APIs
 # --------------------
 
+
 def test_tag_budget(db: Sqlite3):
     db.insert_budget("Food")
     db.insert_tag("Essential")
@@ -200,6 +278,7 @@ def test_tag_budget(db: Sqlite3):
     assert 1 == budget.id
     assert 1 == tag.id
 
+
 def test_untag_budget(db: Sqlite3):
     db.insert_budget("Food")
     db.insert_tag("Essential")
@@ -210,12 +289,21 @@ def test_untag_budget(db: Sqlite3):
 
         assert conn.execute(select(db.budgets_tags)).first() is None
 
+
 # --------------------
 # Account APIs
 # --------------------
 
+
 def test_insert_account_without_plaid_id(db: Sqlite3):
-    db.insert_account("Manual Account")
+    db.insert_account(
+        PartialAccount(
+            name="Manual Account",
+            external_id="ext-manual",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.accounts)).first()
@@ -226,9 +314,17 @@ def test_insert_account_without_plaid_id(db: Sqlite3):
 
 
 def test_insert_account_with_plaid_id(db: Sqlite3):
-    db.insert_plaid_account("token-acc", "Checking")
+    db.insert_plaid_account("token-acc")
 
-    db.insert_account("Linked Account", plaid_id=1)
+    db.insert_account(
+        PartialAccount(
+            name="Linked Account",
+            external_id="ext-plaid-1",
+            source="PLAID",
+            plaid_id=1,
+            account_type="DEPOSITORY",
+        )
+    )
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.accounts)).first()
@@ -239,7 +335,14 @@ def test_insert_account_with_plaid_id(db: Sqlite3):
 
 
 def test_select_account(db: Sqlite3):
-    db.insert_account("Select Me")
+    db.insert_account(
+        PartialAccount(
+            name="Select Me",
+            external_id="ext-sel",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
 
     account = db.select_account(1)
 
@@ -248,10 +351,48 @@ def test_select_account(db: Sqlite3):
     assert account.name == "Select Me"
 
 
+def test_select_account_by_ext_id(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Select Me",
+            external_id="ext-sel",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    account = db.select_account_by_ext_id("ext-sel")
+
+    assert account is not None
+    assert account.id == 1
+    assert account.name == "Select Me"
+
+
 def test_get_accounts(db: Sqlite3):
-    db.insert_account("Account One")
-    db.insert_account("Account Two")
-    db.insert_account("Account Three")
+    db.insert_account(
+        PartialAccount(
+            name="Account One",
+            external_id="ext-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+    db.insert_account(
+        PartialAccount(
+            name="Account Two",
+            external_id="ext-2",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+    db.insert_account(
+        PartialAccount(
+            name="Account Three",
+            external_id="ext-3",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
 
     accounts = db.get_accounts()
 
@@ -262,7 +403,14 @@ def test_get_accounts(db: Sqlite3):
 
 
 def test_delete_account(db: Sqlite3):
-    db.insert_account("Delete Me")
+    db.insert_account(
+        PartialAccount(
+            name="Delete Me",
+            external_id="ext-del",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
 
     db.delete_account(1)
 
@@ -271,36 +419,36 @@ def test_delete_account(db: Sqlite3):
 
     assert row is None
 
+
 # --------------------
 # Plaid Account APIs
 # --------------------
 
+
 def test_insert_plaid_account(db: Sqlite3):
-    db.insert_plaid_account("token-123", "Checking")
+    db.insert_plaid_account("token-123")
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.plaid_accounts)).first()
 
     assert row is not None
     assert row.token == "token-123"
-    assert row.name == "Checking"
 
 
 def test_select_plaid_account(db: Sqlite3):
-    db.insert_plaid_account("token-abc", "Savings")
+    db.insert_plaid_account("token-abc")
 
     account = db.select_plaid_account(1)
 
     assert account is not None
     assert account.id == 1
     assert account.token == "token-abc"
-    assert account.name == "Savings"
 
 
 def test_get_plaid_accounts(db: Sqlite3):
-    db.insert_plaid_account("t1", "Account One")
-    db.insert_plaid_account("t2", "Account Two")
-    db.insert_plaid_account("t3", "Account Three")
+    db.insert_plaid_account("t1")
+    db.insert_plaid_account("t2")
+    db.insert_plaid_account("t3")
 
     accounts = db.get_plaid_accounts()
 
@@ -311,7 +459,7 @@ def test_get_plaid_accounts(db: Sqlite3):
 
 
 def test_delete_plaid_account(db: Sqlite3):
-    db.insert_plaid_account("delete-me", "Temp")
+    db.insert_plaid_account("delete-me")
 
     db.delete_plaid_account(1)
 
