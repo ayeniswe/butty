@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS
         amount_allocated REAL NOT NULL DEFAULT 0,
         amount_spent REAL NOT NULL DEFAULT 0,
         amount_saved REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime ('now')),
         level TEXT CHECK (level IN ('LOW', 'MED', 'HIGH'))
     );
 

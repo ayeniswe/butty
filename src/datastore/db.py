@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import List
 from sqlalchemy import MetaData, create_engine, delete, update, insert, select
@@ -18,12 +19,14 @@ class Sqlite3:
             conn.executescript(open("schema/transactions.sql").read())
             conn.executescript(open("schema/plaid_accounts.sql").read())
             conn.executescript(open("schema/accounts.sql").read())
+            conn.executescript(open("schema/budgets_transactions.sql").read())
 
         self.meta = MetaData()
         self.meta.reflect(bind=self.engine)
         self.budgets = self.meta.tables["budgets"]
         self.tags = self.meta.tables["tags"]
         self.budgets_tags = self.meta.tables["budgets_tags"]
+        self.budgets_transactions = self.meta.tables["budgets_transactions"]
         self.transactions = self.meta.tables["transactions"]
         self.plaid_accounts = self.meta.tables["plaid_accounts"]
         self.accounts = self.meta.tables["accounts"]
@@ -53,6 +56,13 @@ class Sqlite3:
                 select(
                     self.budgets).where(self.budgets.c.id == id)).fetchone()
 
+    def filter_budgets(self, start: datetime, end: datetime) -> List[Budget]:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.budgets).where(
+                    self.budgets.c.created_at >= start).where(
+                        self.budgets.c.created_at < end)).fetchall()
+
     def get_budgets(self) -> List[Budget]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.budgets)).fetchall()
@@ -75,7 +85,9 @@ class Sqlite3:
             }
             if obj.occurred_at:
                 values["occurred_at"] = obj.occurred_at
-            conn.execute(insert(self.transactions).values(values).prefix_with("OR IGNORE"))
+            conn.execute(
+                insert(
+                    self.transactions).values(values).prefix_with("OR IGNORE"))
 
     def delete_transaction(self, id: int):
         with self.engine.begin() as conn:
@@ -91,6 +103,14 @@ class Sqlite3:
     def get_transactions(self) -> List[Transaction]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.transactions)).fetchall()
+
+    def filter_transactions(self, start: datetime,
+                            end: datetime) -> List[Transaction]:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.transactions).where(
+                    self.transactions.c.occurred_at >= start).where(
+                        self.transactions.c.occurred_at < end)).fetchall()
 
     def update_tag(self, obj: Tag):
         with self.engine.begin() as conn:
@@ -160,7 +180,8 @@ class Sqlite3:
         if obj.plaid_id:
             values["plaid_id"] = obj.plaid_id
         with self.engine.begin() as conn:
-            result = conn.execute(insert(self.accounts).values(values).prefix_with("OR IGNORE"))
+            result = conn.execute(
+                insert(self.accounts).values(values).prefix_with("OR IGNORE"))
             return result.inserted_primary_key[0]
 
     def delete_account(self, id: int):
@@ -185,3 +206,17 @@ class Sqlite3:
     def get_accounts(self) -> List[Account]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.accounts)).fetchall()
+
+    def add_budget_transaction(self, budget_id: int, transaction_id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(self.budgets_transactions).values(
+                    transaction_id=transaction_id, budget_id=budget_id))
+
+    def delete_budget_transaction(self, budget_id: int, transaction_id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(self.budgets_transactions).where(
+                    self.budgets_transactions.c.transaction_id
+                    == transaction_id
+                    and self.budgets_transactions.c.budget_id == budget_id))

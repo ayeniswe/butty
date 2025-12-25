@@ -85,7 +85,7 @@ def plaid_exchange(payload: PlaidExchangeRequest,
                            account.name, plaid_id))
 
 
-@app.get("/transactions/sync/plaid")
+@app.post("/transactions/sync/plaid")
 def sync_plaid_transactions(plaid: Plaid = Depends(get_plaid),
                             datastore: Sqlite3 = Depends(get_datastore)):
     # NOTE

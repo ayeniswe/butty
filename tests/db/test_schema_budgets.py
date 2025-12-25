@@ -29,6 +29,7 @@ def test_budgets_columns(db: sqlite3.Connection):
         "amount_allocated",
         "amount_spent",
         "amount_saved",
+        "created_at",
         "level",
     }
 
