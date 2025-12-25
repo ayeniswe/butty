@@ -49,3 +49,14 @@ class Budget:
 class Tag:
     id: int
     name: str
+
+@dataclass(frozen=True)
+class PlaidAccount:
+    id: int
+    token: str
+    name: str
+
+@dataclass(frozen=True)
+class Account:
+    id: int
+    name: str

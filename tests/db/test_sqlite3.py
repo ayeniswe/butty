@@ -209,3 +209,113 @@ def test_untag_budget(db: Sqlite3):
         db.untag_budget(1, 1)
 
         assert conn.execute(select(db.budgets_tags)).first() is None
+
+# --------------------
+# Account APIs
+# --------------------
+
+def test_insert_account_without_plaid_id(db: Sqlite3):
+    db.insert_account("Manual Account")
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.accounts)).first()
+
+    assert row is not None
+    assert row.name == "Manual Account"
+    assert row.plaid_id is None
+
+
+def test_insert_account_with_plaid_id(db: Sqlite3):
+    db.insert_plaid_account("token-acc", "Checking")
+
+    db.insert_account("Linked Account", plaid_id=1)
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.accounts)).first()
+
+    assert row is not None
+    assert row.name == "Linked Account"
+    assert row.plaid_id == 1
+
+
+def test_select_account(db: Sqlite3):
+    db.insert_account("Select Me")
+
+    account = db.select_account(1)
+
+    assert account is not None
+    assert account.id == 1
+    assert account.name == "Select Me"
+
+
+def test_get_accounts(db: Sqlite3):
+    db.insert_account("Account One")
+    db.insert_account("Account Two")
+    db.insert_account("Account Three")
+
+    accounts = db.get_accounts()
+
+    assert len(accounts) == 3
+    assert accounts[0].name == "Account One"
+    assert accounts[1].name == "Account Two"
+    assert accounts[2].name == "Account Three"
+
+
+def test_delete_account(db: Sqlite3):
+    db.insert_account("Delete Me")
+
+    db.delete_account(1)
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.accounts)).first()
+
+    assert row is None
+
+# --------------------
+# Plaid Account APIs
+# --------------------
+
+def test_insert_plaid_account(db: Sqlite3):
+    db.insert_plaid_account("token-123", "Checking")
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.plaid_accounts)).first()
+
+    assert row is not None
+    assert row.token == "token-123"
+    assert row.name == "Checking"
+
+
+def test_select_plaid_account(db: Sqlite3):
+    db.insert_plaid_account("token-abc", "Savings")
+
+    account = db.select_plaid_account(1)
+
+    assert account is not None
+    assert account.id == 1
+    assert account.token == "token-abc"
+    assert account.name == "Savings"
+
+
+def test_get_plaid_accounts(db: Sqlite3):
+    db.insert_plaid_account("t1", "Account One")
+    db.insert_plaid_account("t2", "Account Two")
+    db.insert_plaid_account("t3", "Account Three")
+
+    accounts = db.get_plaid_accounts()
+
+    assert len(accounts) == 3
+    assert accounts[0].token == "t1"
+    assert accounts[1].token == "t2"
+    assert accounts[2].token == "t3"
+
+
+def test_delete_plaid_account(db: Sqlite3):
+    db.insert_plaid_account("delete-me", "Temp")
+
+    db.delete_plaid_account(1)
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.plaid_accounts)).first()
+
+    assert row is None
