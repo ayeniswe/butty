@@ -1,3 +1,13 @@
+[project]
+name = "butty"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+dependencies = ["fastapi", "sqlalchemy", "pydantic", "uvicorn"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"
@@ -10,12 +20,12 @@ line-ending = "lf"
 
 [tool.ruff.lint]
 select = [
-  "E",   # pycodestyle
-  "F",   # pyflakes
-  "I",   # isort
-  "B",   # flake8-bugbear
-  "UP",  # pyupgrade
+  "E",  # pycodestyle
+  "F",  # pyflakes
+  "I",  # isort
+  "B",  # flake8-bugbear
+  "UP", # pyupgrade
 ]
 ignore = [
-  "E501",  # line length handled by formatter
+  "E501", # line length handled by formatter
 ]
