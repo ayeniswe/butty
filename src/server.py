@@ -1,14 +1,20 @@
-from typing import List
+from typing import Annotated
+
 import dotenv
 import uvicorn
-from fastapi import Body, Depends, FastAPI
-from fastapi.responses import HTMLResponse
-from fastapi.concurrency import asynccontextmanager
 from datasource.plaid_source import Plaid
 from datastore.db import Sqlite3
-from datastore.model import PartialAccount, PartialTransaction, TransactionSource, TransactionType
+from datastore.model import (
+    PartialAccount,
+    PartialTransaction,
+    TransactionSource,
+    TransactionType,
+)
+from fastapi import Body, Depends, FastAPI
+from fastapi.concurrency import asynccontextmanager
+from fastapi.responses import HTMLResponse
 from model import AppleTransaction, PlaidExchangeRequest
-from utils import dollars_to_cents, derive_direction
+from utils import derive_direction, dollars_to_cents
 
 
 @asynccontextmanager
@@ -30,7 +36,9 @@ def get_datastore() -> Sqlite3:
 
 
 @app.get("/plaid/link", response_class=HTMLResponse)
-def plaid_link_page(plaid: Plaid = Depends(get_plaid), ):
+def plaid_link_page(
+    plaid: Annotated[Plaid, Depends(get_plaid)],
+):
     link_token = plaid.create_link()
 
     return f"""
@@ -67,9 +75,11 @@ def plaid_link_page(plaid: Plaid = Depends(get_plaid), ):
 
 
 @app.post("/plaid/exchange")
-def plaid_exchange(payload: PlaidExchangeRequest,
-                   plaid: Plaid = Depends(get_plaid),
-                   datastore: Sqlite3 = Depends(get_datastore)):
+def plaid_exchange(
+    payload: PlaidExchangeRequest,
+    plaid: Annotated[Plaid, Depends(get_plaid)],
+    datastore: Annotated[Sqlite3, Depends(get_datastore)],
+):
     access_token = plaid.add_financial_item(payload.public_token)
     plaid_id = datastore.insert_plaid_account(access_token)
     for account in plaid.get_accounts(access_token):
@@ -80,14 +90,21 @@ def plaid_exchange(payload: PlaidExchangeRequest,
             "loan": TransactionType.LOAN,
         }
         datastore.insert_account(
-            PartialAccount(account.account_id, TransactionSource.PLAID,
-                           PLAID_ACCOUNT_TYPE_MAP.get(account.type.value),
-                           account.name, plaid_id))
+            PartialAccount(
+                account.account_id,
+                TransactionSource.PLAID,
+                PLAID_ACCOUNT_TYPE_MAP.get(account.type.value),
+                account.name,
+                plaid_id,
+            )
+        )
 
 
 @app.post("/transactions/sync/plaid")
-def sync_plaid_transactions(plaid: Plaid = Depends(get_plaid),
-                            datastore: Sqlite3 = Depends(get_datastore)):
+def sync_plaid_transactions(
+    plaid: Annotated[Plaid, Depends(get_plaid)],
+    datastore: Annotated[Sqlite3, Depends(get_datastore)],
+):
     # NOTE
     # Any APPLE CARDS will not be processed here but rather
     # elsewhere in own domain
@@ -101,23 +118,30 @@ def sync_plaid_transactions(plaid: Plaid = Depends(get_plaid),
 
             amount = transaction.amount
             account_id = transaction.account_id
-            is_credit = datastore.select_account_by_ext_id(
-                account_id).account_type == TransactionType.CREDIT
+            is_credit = (
+                datastore.select_account_by_ext_id(account_id).account_type
+                == TransactionType.CREDIT
+            )
             direction = derive_direction(amount, is_credit)
             # NOTE
             # All transactions should be stored as cents
             datastore.insert_transaction(
-                PartialTransaction(name,
-                                   dollars_to_cents(amount),
-                                   direction,
-                                   account_id,
-                                   external_id=transaction.transaction_id,
-                                   occurred_at=transaction.date))
+                PartialTransaction(
+                    name,
+                    dollars_to_cents(amount),
+                    direction,
+                    account_id,
+                    external_id=transaction.transaction_id,
+                    occurred_at=transaction.date,
+                )
+            )
 
 
 @app.post("/transactions/sync/apple")
-def sync_apple_transactions(payload: List[AppleTransaction] = Body(...),
-                            datastore: Sqlite3 = Depends(get_datastore)):
+def sync_apple_transactions(
+    payload: Annotated[list[AppleTransaction], Body(...)],
+    datastore: Annotated[Sqlite3, Depends(get_datastore)],
+):
     # NOTE
     # All Apple transactions are expected to be credit from
     # Apple Card
@@ -127,24 +151,28 @@ def sync_apple_transactions(payload: List[AppleTransaction] = Body(...),
         # easy way to get accounts
         transaction = payload[0]
         account_id = datastore.insert_account(
-            PartialAccount(transaction.account_id, TransactionSource.APPLE,
-                           TransactionType.CREDIT, "Apple Card"))
+            PartialAccount(
+                transaction.account_id,
+                TransactionSource.APPLE,
+                TransactionType.CREDIT,
+                "Apple Card",
+            )
+        )
         for transaction in payload:
             # NOTE
             # All transactions should be stored as cents
             datastore.insert_transaction(
-                PartialTransaction(transaction.name,
-                                   dollars_to_cents(transaction.amount),
-                                   transaction.direction,
-                                   account_id,
-                                   external_id=transaction.id,
-                                   occurred_at=transaction.date))
+                PartialTransaction(
+                    transaction.name,
+                    dollars_to_cents(transaction.amount),
+                    transaction.direction,
+                    account_id,
+                    external_id=transaction.id,
+                    occurred_at=transaction.date,
+                )
+            )
 
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
-    uvicorn.run("server:app",
-                host="0.0.0.0",
-                port=8000,
-                reload=True,
-                workers=1)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True, workers=1)

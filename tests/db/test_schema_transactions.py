@@ -1,4 +1,5 @@
 import sqlite3
+
 import pytest
 
 
@@ -106,10 +107,9 @@ def test_autoincrement_id(db):
         "INSERT INTO transactions (name, amount, direction, account_id) VALUES ('B', 24, 'OUT', 1);"
     )
 
-    ids = [
-        r[0] for r in db.execute("SELECT id FROM transactions ORDER BY id;")
-    ]
+    ids = [r[0] for r in db.execute("SELECT id FROM transactions ORDER BY id;")]
     assert ids == [1, 2]
+
 
 def test_external_id_unique_dup_dropped(db: sqlite3.Connection):
     db.execute(

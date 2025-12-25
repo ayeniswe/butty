@@ -1,4 +1,5 @@
 import sqlite3
+
 import pytest
 
 
@@ -50,8 +51,8 @@ def test_insert_budget_transaction_link(db: sqlite3.Connection):
     )
 
     row = db.execute(
-        "SELECT transaction_id, budget_id FROM budgets_transactions").fetchone(
-        )
+        "SELECT transaction_id, budget_id FROM budgets_transactions"
+    ).fetchone()
 
     assert row == (transaction_id, budget_id)
 
@@ -80,8 +81,7 @@ def test_budget_transaction_rejects_invalid_budget(db: sqlite3.Connection):
         )
 
 
-def test_budget_transaction_rejects_invalid_transaction(
-        db: sqlite3.Connection):
+def test_budget_transaction_rejects_invalid_transaction(db: sqlite3.Connection):
     # create budget only
     db.execute(
         "INSERT INTO budgets (name, amount_allocated) VALUES (?, ?)",
@@ -134,8 +134,7 @@ def test_budget_transaction_composite_pk_enforced(db: sqlite3.Connection):
         )
 
 
-def test_cascade_delete_budget_removes_budget_transactions(
-        db: sqlite3.Connection):
+def test_cascade_delete_budget_removes_budget_transactions(db: sqlite3.Connection):
     # create budget
     db.execute(
         "INSERT INTO budgets (name, amount_allocated) VALUES (?, ?)",
@@ -168,15 +167,15 @@ def test_cascade_delete_budget_removes_budget_transactions(
     # delete budget
     db.execute(
         "DELETE FROM budgets WHERE id = ?",
-        (budget_id, ),
+        (budget_id,),
     )
 
     rows = db.execute("SELECT * FROM budgets_transactions").fetchall()
 
     assert rows == []
 
-def test_cascade_delete_transaction_removes_budget_transactions(
-        db: sqlite3.Connection):
+
+def test_cascade_delete_transaction_removes_budget_transactions(db: sqlite3.Connection):
     # create budget
     db.execute(
         "INSERT INTO budgets (name, amount_allocated) VALUES (?, ?)",
@@ -213,8 +212,6 @@ def test_cascade_delete_transaction_removes_budget_transactions(
         (transaction_id,),
     )
 
-    rows = db.execute(
-        "SELECT * FROM budgets_transactions"
-    ).fetchall()
+    rows = db.execute("SELECT * FROM budgets_transactions").fetchall()
 
     assert rows == []

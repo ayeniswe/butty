@@ -1,4 +1,5 @@
 import sqlite3
+
 import pytest
 
 
@@ -34,7 +35,7 @@ def test_select_plaid_account_by_id(db: sqlite3.Connection):
 
     selected = db.execute(
         "SELECT id, token FROM plaid_accounts WHERE id = ?",
-        (plaid_id, ),
+        (plaid_id,),
     ).fetchone()
 
     assert selected is not None
@@ -54,8 +55,7 @@ def test_get_all_plaid_accounts(db: sqlite3.Connection):
             [token],
         )
 
-    rows = db.execute(
-        "SELECT token FROM plaid_accounts ORDER BY id").fetchall()
+    rows = db.execute("SELECT token FROM plaid_accounts ORDER BY id").fetchall()
 
     assert len(rows) == 2
     assert rows[0][0] == accounts[0]
@@ -73,7 +73,7 @@ def test_delete_plaid_account(db: sqlite3.Connection):
 
     db.execute(
         "DELETE FROM plaid_accounts WHERE id = ?",
-        (plaid_id, ),
+        (plaid_id,),
     )
 
     remaining = db.execute("SELECT * FROM plaid_accounts").fetchall()
@@ -85,7 +85,5 @@ def test_autoincrement_id(db: sqlite3.Connection):
     db.execute("INSERT INTO plaid_accounts ( token) VALUES ( '12323');")
     db.execute("INSERT INTO plaid_accounts ( token) VALUES ( '12334');")
 
-    ids = [
-        r[0] for r in db.execute("SELECT id FROM plaid_accounts ORDER BY id;")
-    ]
+    ids = [r[0] for r in db.execute("SELECT id FROM plaid_accounts ORDER BY id;")]
     assert ids == [1, 2]
