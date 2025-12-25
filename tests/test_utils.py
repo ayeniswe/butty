@@ -1,6 +1,6 @@
 import pytest
-from utils import dollars_to_cents, derive_direction
 from datastore.model import TransactionDirection
+from utils import derive_direction, dollars_to_cents
 
 
 class TestDollarsToCents:

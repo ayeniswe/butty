@@ -1,21 +1,24 @@
-import pytest
-from sqlalchemy import select
+import datetime as dt
+from datetime import datetime, timedelta
 
+import pytest
 from datastore.db import Sqlite3
 from datastore.model import (
     Budget,
-    PartialTransaction,
     PartialAccount,
+    PartialTransaction,
     Tag,
     TransactionDirection,
     TransactionSource,
 )
+from sqlalchemy import select
 
 
 @pytest.fixture
 def db():
     db = Sqlite3(":memory:")
     yield db
+    db.engine.dispose()
 
 
 # --------------------
@@ -70,7 +73,7 @@ def test_delete_budget(db: Sqlite3):
 
 def test_select_budget(db: Sqlite3):
     db.insert_budget("Temp")
-    db.select_budget(1) is not None
+    assert db.select_budget(1) is not None
 
 
 def test_get_budgets(db: Sqlite3):
@@ -78,6 +81,51 @@ def test_get_budgets(db: Sqlite3):
     db.insert_budget("Temp")
     db.insert_budget("Temp")
     assert len(db.get_budgets()) == 3
+
+
+def test_filter_budgets_by_created_at_range(db: Sqlite3):
+    # insert budgets at different times
+    db.insert_budget("Old Budget", 100)
+    db.insert_budget("Mid Budget", 200)
+    db.insert_budget("New Budget", 300)
+
+    with db.engine.begin() as conn:
+        rows = conn.execute(select(db.budgets)).fetchall()
+        assert len(rows) == 3
+
+        # manually update created_at to controlled values
+        now = datetime.now(dt.UTC)
+        old = now - timedelta(days=10)
+        mid = now - timedelta(days=5)
+        new = now - timedelta(days=1)
+
+        conn.execute(
+            db.budgets.update()
+            .where(db.budgets.c.name == "Old Budget")
+            .values(created_at=old.isoformat())
+        )
+        conn.execute(
+            db.budgets.update()
+            .where(db.budgets.c.name == "Mid Budget")
+            .values(created_at=mid.isoformat())
+        )
+        conn.execute(
+            db.budgets.update()
+            .where(db.budgets.c.name == "New Budget")
+            .values(created_at=new.isoformat())
+        )
+
+    # filter only mid -> new
+    start = now - timedelta(days=6)
+    end = now
+
+    result = db.filter_budgets(start, end)
+
+    names = {b.name for b in result}
+
+    assert "Mid Budget" in names
+    assert "New Budget" in names
+    assert "Old Budget" not in names
 
 
 # --------------------
@@ -96,11 +144,14 @@ def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
     )
     with db.engine.begin() as conn:
         db.insert_transaction(
-            PartialTransaction("Coffee",
-                               45,
-                               TransactionDirection.OUT,
-                               external_id="ext-45",
-                               account_id=1))
+            PartialTransaction(
+                "Coffee",
+                45,
+                TransactionDirection.OUT,
+                external_id="ext-45",
+                account_id=1,
+            )
+        )
         row = conn.execute(select(db.transactions)).first()
 
     assert row.occurred_at is not None
@@ -117,11 +168,10 @@ def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
     )
     ts = "2024-01-01 10:00:00"
     db.insert_transaction(
-        PartialTransaction("Salary",
-                           3000,
-                           TransactionDirection.IN,
-                           occurred_at=ts,
-                           account_id=1))
+        PartialTransaction(
+            "Salary", 3000, TransactionDirection.IN, occurred_at=ts, account_id=1
+        )
+    )
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
@@ -138,10 +188,8 @@ def test_update_transaction_note(db: Sqlite3):
         )
     )
     db.insert_transaction(
-        PartialTransaction("Groceries",
-                           50,
-                           TransactionDirection.OUT,
-                           account_id=1), )
+        PartialTransaction("Groceries", 50, TransactionDirection.OUT, account_id=1),
+    )
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
@@ -162,10 +210,8 @@ def test_delete_transaction(db: Sqlite3):
         )
     )
     db.insert_transaction(
-        PartialTransaction("Delete Me",
-                           1,
-                           TransactionDirection.OUT,
-                           account_id=1), )
+        PartialTransaction("Delete Me", 1, TransactionDirection.OUT, account_id=1),
+    )
     db.delete_transaction(1)
 
     with db.engine.begin() as conn:
@@ -182,11 +228,9 @@ def test_select_transaction(db: Sqlite3):
         )
     )
     db.insert_transaction(
-        PartialTransaction("Trans",
-                           100,
-                           TransactionDirection.OUT,
-                           account_id=1), )
-    db.select_transaction(1) is not None
+        PartialTransaction("Trans", 100, TransactionDirection.OUT, account_id=1),
+    )
+    assert db.select_transaction(1) is not None
 
 
 def test_get_transactions(db: Sqlite3):
@@ -199,19 +243,89 @@ def test_get_transactions(db: Sqlite3):
         )
     )
     db.insert_transaction(
-        PartialTransaction("Trans 1",
-                           1,
-                           TransactionDirection.OUT,
-                           account_id=1), )
+        PartialTransaction("Trans 1", 1, TransactionDirection.OUT, account_id=1),
+    )
     db.insert_transaction(
-        PartialTransaction("Trans 2", 2, TransactionDirection.IN,
-                           account_id=1), )
+        PartialTransaction("Trans 2", 2, TransactionDirection.IN, account_id=1),
+    )
     db.insert_transaction(
-        PartialTransaction("Trans 3",
-                           3,
-                           TransactionDirection.OUT,
-                           account_id=1), )
+        PartialTransaction("Trans 3", 3, TransactionDirection.OUT, account_id=1),
+    )
     assert len(db.get_transactions()) == 3
+
+
+def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
+    # create account
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-filter",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    # insert transactions
+    db.insert_transaction(
+        PartialTransaction(
+            name="Old Tx",
+            amount=10,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+        )
+    )
+    db.insert_transaction(
+        PartialTransaction(
+            name="Mid Tx",
+            amount=20,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+        )
+    )
+    db.insert_transaction(
+        PartialTransaction(
+            name="New Tx",
+            amount=30,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+        )
+    )
+
+    with db.engine.begin() as conn:
+        rows = conn.execute(select(db.transactions)).fetchall()
+        assert len(rows) == 3
+
+        now = datetime.now(dt.UTC)
+        old = now - timedelta(days=10)
+        mid = now - timedelta(days=5)
+        new = now - timedelta(days=1)
+
+        conn.execute(
+            db.transactions.update()
+            .where(db.transactions.c.name == "Old Tx")
+            .values(occurred_at=old.isoformat())
+        )
+        conn.execute(
+            db.transactions.update()
+            .where(db.transactions.c.name == "Mid Tx")
+            .values(occurred_at=mid.isoformat())
+        )
+        conn.execute(
+            db.transactions.update()
+            .where(db.transactions.c.name == "New Tx")
+            .values(occurred_at=new.isoformat())
+        )
+
+    # filter mid -> new
+    start = now - timedelta(days=6)
+    end = now
+
+    result = db.filter_transactions(start, end)
+    names = {t.name for t in result}
+
+    assert "Mid Tx" in names
+    assert "New Tx" in names
+    assert "Old Tx" not in names
 
 
 # # --------------------
@@ -250,7 +364,7 @@ def test_delete_tag(db: Sqlite3):
 
 def test_select_tag(db: Sqlite3):
     db.insert_tag("Tag")
-    db.select_tag(1) is not None
+    assert db.select_tag(1) is not None
 
 
 def test_get_tags(db: Sqlite3):
@@ -467,3 +581,82 @@ def test_delete_plaid_account(db: Sqlite3):
         row = conn.execute(select(db.plaid_accounts)).first()
 
     assert row is None
+
+
+# --------------------
+# Budget <-> Transaction APIs
+# --------------------
+
+
+def test_add_budget_transaction_link(db: Sqlite3):
+    # create budget
+    db.insert_budget("Groceries", 500)
+
+    # create account
+    db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="ext-bt-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    # create transaction
+    db.insert_transaction(
+        PartialTransaction(
+            name="Walmart",
+            amount=120,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+        )
+    )
+
+    with db.engine.begin() as conn:
+        budget_id = conn.execute(select(db.budgets)).first().id
+        transaction_id = conn.execute(select(db.transactions)).first().id
+
+        db.add_budget_transaction(budget_id, transaction_id)
+
+        row = conn.execute(select(db.budgets_transactions)).first()
+        assert row is not None
+        assert row.budget_id == budget_id
+        assert row.transaction_id == transaction_id
+
+
+def test_delete_budget_transaction_link(db: Sqlite3):
+    # create budget
+    db.insert_budget("Groceries", 500)
+
+    # create account
+    db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="ext-bt-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    # create transaction
+    db.insert_transaction(
+        PartialTransaction(
+            name="Walmart",
+            amount=120,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+        )
+    )
+
+    with db.engine.begin() as conn:
+        budget_id = conn.execute(select(db.budgets)).first().id
+        transaction_id = conn.execute(select(db.transactions)).first().id
+
+        # pre-link
+        db.add_budget_transaction(budget_id, transaction_id)
+        assert conn.execute(select(db.budgets_transactions)).first() is not None
+
+        # delete link
+        db.delete_budget_transaction(budget_id, transaction_id)
+
+        assert conn.execute(select(db.budgets_transactions)).first() is None

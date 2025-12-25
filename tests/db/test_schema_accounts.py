@@ -1,4 +1,5 @@
 import sqlite3
+
 import pytest
 
 
@@ -26,39 +27,47 @@ def test_insert_account(db: sqlite3.Connection):
 def test_source_enum_valid(db: sqlite3.Connection):
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "12234", "APPLE", "DEPOSITORY"])
+        ["Discover", "12234", "APPLE", "DEPOSITORY"],
+    )
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "122345", "PLAID", "DEPOSITORY"])
+        ["Discover", "122345", "PLAID", "DEPOSITORY"],
+    )
 
 
 def test_source_enum_invalid(db: sqlite3.Connection):
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
             "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-            ["Discover", "12234", "EXT", "DEPOSITORY"])
+            ["Discover", "12234", "EXT", "DEPOSITORY"],
+        )
 
 
 def test_account_type_enum_valid(db: sqlite3.Connection):
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "12234", "APPLE", "DEPOSITORY"])
+        ["Discover", "12234", "APPLE", "DEPOSITORY"],
+    )
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "122345", "PLAID", "CREDIT"])
+        ["Discover", "122345", "PLAID", "CREDIT"],
+    )
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "1223456", "PLAID", "LOAN"])
+        ["Discover", "1223456", "PLAID", "LOAN"],
+    )
     db.execute(
         "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ["Discover", "1223457", "PLAID", "INVESTMENT"])
+        ["Discover", "1223457", "PLAID", "INVESTMENT"],
+    )
 
 
 def test_account_type_enum_invalid(db: sqlite3.Connection):
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
             "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-            ["Discover", "12234", "EXT", "EM"])
+            ["Discover", "12234", "EXT", "EM"],
+        )
 
 
 def test_select_account_by_id(db: sqlite3.Connection):
@@ -72,7 +81,7 @@ def test_select_account_by_id(db: sqlite3.Connection):
 
     selected = db.execute(
         "SELECT name FROM accounts WHERE id = ?",
-        (id, ),
+        (id,),
     ).fetchone()
 
     assert selected is not None
@@ -172,7 +181,7 @@ def test_cascade_delete_plaid_account_removes_accounts(db: sqlite3.Connection):
     # delete plaid account
     db.execute(
         "DELETE FROM plaid_accounts WHERE id = ?",
-        (plaid_id, ),
+        (plaid_id,),
     )
 
     rows = db.execute("SELECT * FROM accounts").fetchall()

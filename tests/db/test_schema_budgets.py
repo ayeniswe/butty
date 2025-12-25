@@ -1,4 +1,5 @@
 import sqlite3
+
 import pytest
 
 
@@ -29,6 +30,7 @@ def test_budgets_columns(db: sqlite3.Connection):
         "amount_allocated",
         "amount_spent",
         "amount_saved",
+        "created_at",
         "level",
     }
 
@@ -53,6 +55,7 @@ def test_defaults(db: sqlite3.Connection):
     """).fetchone()
 
     assert row == (0.0, 0.0, 0.0)
+
 
 def test_level_enum_valid(db: sqlite3.Connection):
     db.execute("""
@@ -113,6 +116,7 @@ def test_trigger_on_amount_allocated_change(db: sqlite3.Connection):
     """).fetchone()[0]
 
     assert saved == 800
+
 
 def test_autoincrement_id(db: sqlite3.Connection):
     db.execute("INSERT INTO budgets (name, level) VALUES ('A', 'LOW');")
