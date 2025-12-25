@@ -16,6 +16,8 @@ class Sqlite3:
             conn.executescript(open("schema/budgets.sql").read())
             conn.executescript(open("schema/budgets_tags.sql").read())
             conn.executescript(open("schema/transactions.sql").read())
+            conn.executescript(open("schema/plaid_accounts.sql").read())
+            conn.executescript(open("schema/accounts.sql").read())
 
         self.meta = MetaData()
         self.meta.reflect(bind=self.engine)
@@ -23,6 +25,8 @@ class Sqlite3:
         self.tags = self.meta.tables["tags"]
         self.budgets_tags = self.meta.tables["budgets_tags"]
         self.transactions = self.meta.tables["transactions"]
+        self.plaid_accounts = self.meta.tables["plaid_accounts"]
+        self.accounts = self.meta.tables["accounts"]
 
     def update_budget(self, obj: Budget):
         with self.engine.begin() as conn:
@@ -121,3 +125,48 @@ class Sqlite3:
                 delete(self.budgets_tags).where(
                     self.budgets_tags.c.tag_id == tag_id
                     and self.budgets_tags.c.budget_id == budget_id))
+
+    def insert_plaid_account(self, token: str, name: str):
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(self.plaid_accounts).values(token=token, name=name))
+
+    def delete_plaid_account(self, id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(
+                    self.plaid_accounts).where(self.plaid_accounts.c.id == id))
+
+    def select_plaid_account(self, id: int) -> Tag:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.plaid_accounts).where(
+                    self.plaid_accounts.c.id == id)).fetchone()
+
+    def get_plaid_accounts(self) -> Tag:
+        with self.engine.begin() as conn:
+            return conn.execute(select(self.plaid_accounts)).fetchall()
+
+    def insert_account(self, name: str, plaid_id: int | None = None):
+        values = {"name": name}
+        if plaid_id:
+            values["plaid_id"] = plaid_id
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(self.accounts).values(values))
+
+    def delete_account(self, id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(
+                    self.accounts).where(self.accounts.c.id == id))
+
+    def select_account(self, id: int) -> Tag:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.accounts).where(
+                    self.accounts.c.id == id)).fetchone()
+
+    def get_accounts(self) -> Tag:
+        with self.engine.begin() as conn:
+            return conn.execute(select(self.accounts)).fetchall()
