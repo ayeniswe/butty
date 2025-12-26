@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Budget Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="dashboard__header">
+        <div class="logo-circle"></div>
+        <h1>Lorem IPSUM</h1>
+      </header>
+
+      <section class="dashboard__body">
+        <aside
+          class="budget-list"
+          id="budget-lines-container"
+          hx-get="/budget-lines"
+          hx-trigger="load"
+          hx-target="#budget-lines-container"
+          hx-swap="innerHTML"
+        >
+          {% include "partials/budget_lines.html" %}
+        </aside>
+
+        <section class="detail-panel">
+          <div
+            class="summary-card"
+            id="summary-card"
+            hx-get="/summary"
+            hx-trigger="load, every 15s"
+            hx-target="#summary-card"
+            hx-swap="innerHTML"
+          >
+            {% include "partials/summary_card.html" %}
+          </div>
+
+          <div
+            class="explorer"
+            id="explorer"
+            hx-get="/explorer"
+            hx-trigger="load"
+            hx-target="#explorer"
+            hx-swap="innerHTML"
+          >
+            {% include "partials/explorer.html" %}
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

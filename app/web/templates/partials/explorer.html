@@ -1,0 +1,78 @@
+<div class="explorer__header">
+  <div>
+    <p class="explorer__kicker">Explorer</p>
+    <h3>Transactions & Accounts</h3>
+  </div>
+  <button class="pill">+ Add Account</button>
+</div>
+
+<form
+  class="explorer__search"
+  hx-get="/explorer/search"
+  hx-target="#explorer"
+  hx-swap="innerHTML"
+>
+  <input
+    type="search"
+    name="q"
+    value="{{ query | default('') }}"
+    placeholder="Search transactions, accounts, sync status"
+  />
+  <button class="pill pill--dark" type="submit">Search</button>
+</form>
+
+<div class="explorer__grid">
+  <div class="card card--stacked">
+    <header class="card__header">
+      <span class="badge">Recent</span>
+      <strong>Transactions</strong>
+    </header>
+    <ul class="list list--transactions">
+      {% for tx in transactions %}
+      <li>
+        <div>
+          <p class="list__title">{{ tx.description }}</p>
+          <p class="list__meta">{{ tx.account }} · {{ tx.date }}</p>
+        </div>
+        <span class="list__amount {{ 'list__amount--negative' if tx.amount < 0 else 'list__amount--positive' }}">
+          {{ '$%.2f' % tx.amount }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card card--stacked">
+    <header class="card__header">
+      <span class="badge">Accounts</span>
+      <strong>Balances</strong>
+    </header>
+    <ul class="list list--accounts">
+      {% for account in accounts %}
+      <li>
+        <p class="list__title">{{ account.name }}</p>
+        <p class="list__meta">Updated just now</p>
+        <span class="list__amount">${{ '%.2f' % account.balance }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card card--wide card--stacked">
+    <header class="card__header">
+      <span class="badge">Sync</span>
+      <strong>Manual sync actions</strong>
+    </header>
+    <ul class="list list--sync">
+      {% for action in sync_actions %}
+      <li>
+        <div>
+          <p class="list__title">{{ action.label }}</p>
+          <p class="list__meta">{{ action.status }}</p>
+        </div>
+        <button class="pill pill--dark pill--small">{{ action.action }}</button>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
