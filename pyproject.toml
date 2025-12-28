@@ -3,7 +3,7 @@ name = "butty"
 version = "0.1.0"
 requires-python = ">=3.12"
 
-dependencies = ["fastapi", "sqlalchemy", "pydantic", "uvicorn"]
+dependencies = ["fastapi", "sqlalchemy", "pydantic", "uvicorn", "jinja2"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]

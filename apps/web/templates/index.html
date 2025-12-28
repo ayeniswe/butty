@@ -22,11 +22,22 @@
           hx-trigger="load"
           hx-target="#budget-lines-container"
           hx-swap="innerHTML"
+          hx-on="click:
+            const form = document.querySelector('#budget-summary-create');
+            const button = document.querySelector('.budget-list-create');
+
+            if (
+              form.contains(event.target) ||
+              event.target.closest('.budget-list-create')
+            ) return;
+
+            form.classList.remove('is-active');
+            button.classList.add('is-active');
+        "
         >
-          {% include "partials/budget_lines.html" %}
         </aside>
 
-        <section class="detail-panel">
+        <!-- <section class="detail-panel">
           <div
             class="summary-card"
             id="summary-card"
@@ -48,7 +59,7 @@
           >
             {% include "partials/explorer.html" %}
           </div>
-        </section>
+        </section> -->
       </section>
     </main>
   </body>

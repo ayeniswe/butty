@@ -1,0 +1,63 @@
+<ul class="budget-list__items budget-list__items--scroll" hx-on="click:
+    const btn = this.querySelector('.tag-create__button');
+    const form = this.querySelector('.tag-create');
+
+    if (form.classList.contains('is-active')) {
+      form.classList.remove('is-active');
+      btn.classList.add('is-active');
+    }
+  ">
+    <li>
+        <button type="button" class="tag-create__button is-active pill pill--ghost" hx-on="click:
+          event.stopPropagation();
+          const form = this.nextElementSibling;
+          this.classList.remove('is-active');
+          form.classList.add('is-active');
+        ">
+            <span class="pill__content">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" />
+                </svg>
+                New Tag
+        </button>
+        <div class="tag-create">
+            <form hx-on="click:event.stopPropagation()">
+                <input type="text" name="name" placeholder="Description" required />
+                <button type="submit" class="pill pill--primary">
+                    Add
+                </button>
+            </form>
+        </div>
+    </li>
+    {% for item in tags %}
+    <li class="budget-tag budget-tag--card">
+        {{ item.name }}
+        <button class="budget-tag-delete" hx-on="click:event.stopPropagation()">
+            <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"/>
+            <path d="M8 6V4h8v2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"/>
+            <path d="M6 6l1 14h10l1-14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"/>
+            <path d="M10 11v6M14 11v6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"/>
+            </svg>
+        </button>
+    </li>
+    {% endfor %}
+</ul>
