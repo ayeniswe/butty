@@ -191,19 +191,17 @@ textarea[readonly] {
   flex: flex-end;
 }
 
-.tag-create__button.is-active,
 .transaction-create__button.is-active {
   display: block;
 }
 
-.tag-create__button,
 .transaction-create__button {
   display: none;
   flex: 1;
+  align-self: self-start;
 }
 
 
-.tag-create,
 .transaction-create {
   background: linear-gradient(180deg,
       color-mix(in srgb, var(--color-bg-surface) 85%, transparent),
@@ -222,8 +220,71 @@ textarea[readonly] {
   overflow: hidden;
 }
 
+.budget-tab-create-row {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface, #fff);
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
 
-.tag-create.is-active,
+
+/* ─────────────────────────────
+   Tag Search
+   ───────────────────────────── */
+
+.budget-tag-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px
+}
+
+.tag-search-dropdown {
+  display: none;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-input-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-elevated);
+  padding: 0.25rem;
+}
+
+.tag-search-dropdown.is-open {
+  display: block;
+}
+
+.tag-search-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-search-item {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.tag-search-item:hover {
+  background: var(--color-highlight-soft);
+}
+
+.tag-search-create {
+  padding: 0.35rem;
+}
+
+.tag-search-create button {
+  width: 100%;
+  justify-content: center;
+  font-size: 13px;
+}
+
+
 .transaction-create.is-active {
   display: block;
 }
@@ -234,7 +295,6 @@ textarea[readonly] {
   -webkit-appearance: none;
 }
 
-.tag-create form,
 .transaction-create form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -242,18 +302,11 @@ textarea[readonly] {
   align-items: center;
 }
 
-.tag-create form input,
-.tag-create form select,
 .transaction-create form input,
 .transaction-create form select {
   height: 38px;
   background: var(--color-input-bg);
 }
-
-.tag-create form button .transaction-create form button {
-  max-width: 25%;
-}
-
 
 .budget-list header {
   display: flex;
@@ -402,6 +455,7 @@ textarea[readonly] {
 
 .budget-tag {
   display: flex;
+  align-items: center;
   justify-content: space-between;
 }
 

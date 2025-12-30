@@ -1,0 +1,24 @@
+{% if query %}
+    <ul>
+        {% if tags %}
+            {% for tag in tags %}
+                <li class="tag-search-item"
+                    hx-post="/budgets/{{ id }}/tags"
+                    hx-vals='{"tag_id": "{{ tag.id }}"}'
+                    hx-target="#budget-item-details-container"
+                    hx-swap="innerHTML">{{ tag.name }}</li>
+            {% endfor %}
+        {% else %}
+            <li class="tag-search-item tag-search-item--new"
+                hx-post="/budgets/{{ id }}/tags"
+                hx-target="#budget-item-details-container"
+                hx-vals='{"name": "{{ query }}"}'
+                hx-swap="innerHTML">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                Create tag “{{ query }}”
+            </li>
+        {% endif %}
+    </ul>
+{% endif %}

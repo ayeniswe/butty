@@ -1,8 +1,7 @@
-<input
-  name="{{ field }}"
-  value="{{ value }}"
-  hx-post="/budgets/{{ id }}"
-  hx-trigger="blur"
-  hx-include="this"
-  hx-on="htmx:beforeRequest: if (this.value.trim() === '') event.preventDefault()"
-/>
+<input name="{{ field }}"
+       value="{{ value }}"
+       hx-post="/budgets/{{ id }}"
+       hx-trigger="blur"
+       hx-include="this"
+       hx-on="htmx:beforeRequest: if (this.value.trim() === '') event.preventDefault()"
+       required />

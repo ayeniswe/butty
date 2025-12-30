@@ -1,6 +1,6 @@
 from decimal import ROUND_HALF_UP, Decimal
 
-from datastore.model import TransactionDirection
+from api.datastore.model import TransactionDirection
 
 
 def dollars_to_cents(amount: float | str) -> int:

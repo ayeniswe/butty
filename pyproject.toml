@@ -3,10 +3,11 @@ name = "butty"
 version = "0.1.0"
 requires-python = ">=3.12"
 
-dependencies = ["fastapi", "sqlalchemy", "pydantic", "uvicorn", "jinja2"]
+dependencies = ["fastapi", "sqlalchemy", "pydantic", "jinja2", "uvicorn"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]
+dev = ["pytest", "pytest-cov", "ruff", "djlint", "pre-commit"]
+
 
 [tool.ruff]
 line-length = 88

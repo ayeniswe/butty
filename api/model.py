@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from datastore.model import TransactionDirection
 from pydantic import BaseModel
+
+from api.datastore.model import TransactionDirection
 
 
 class PlaidExchangeRequest(BaseModel):

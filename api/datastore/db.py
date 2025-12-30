@@ -3,7 +3,8 @@ from pathlib import Path
 
 from sqlalchemy import MetaData, create_engine, delete, insert, select, update
 
-from .model import (
+from api.datastore.base import DataStore
+from api.datastore.model import (
     Account,
     Budget,
     PartialAccount,
@@ -14,7 +15,7 @@ from .model import (
 )
 
 
-class Sqlite3:
+class Sqlite3(DataStore):
     def __init__(self, db_path: Path):
         self.engine = create_engine(f"sqlite:///{db_path}", future=True)
 
@@ -137,7 +138,8 @@ class Sqlite3:
 
     def insert_tag(self, name: str):
         with self.engine.begin() as conn:
-            conn.execute(insert(self.tags).values(name=name))
+            result = conn.execute(insert(self.tags).values(name=name))
+            return result.inserted_primary_key[0]
 
     def delete_tag(self, id: int):
         with self.engine.begin() as conn:
