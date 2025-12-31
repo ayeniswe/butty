@@ -12,7 +12,7 @@
 </header>
 <form id="budget-summary-create"
       class="budget-summary"
-      hx-post="/budgets"
+      hx-post="/budgets?year={{ year }}&month={{ month }}"
       hx-target="#budget-lines-container"
       hx-swap="innerHTML">
   <!-- Name -->
@@ -54,7 +54,7 @@
       {% set zone = "progress__bar--warning" %}
     {% endif %}
     <li class="budget-item budget-item--card"
-        hx-get="/budgets/{{ item.id }}"
+        hx-get="/budgets/{{ item.id }}?year={{ year }}&month={{ month }}"
         hx-target="#budget-lines-container"
         hx-swap="innerHTML">
       <div class="budget-item__label">{{ item.name }}</div>
