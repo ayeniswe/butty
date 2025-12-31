@@ -1,6 +1,7 @@
 # MARK: Imports
 from contextlib import asynccontextmanager
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
@@ -54,8 +55,10 @@ def _base_context(service: Service) -> dict:
 def read_root(
     request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
+    current_month = datetime.now().strftime("%B")
     return templates.TemplateResponse(
-        "index.html", {"request": request, **_base_context(service)}
+        "index.html",
+        {"request": request, **_base_context(service), "current_month": current_month},
     )
 
 
@@ -107,11 +110,13 @@ def explorer_search(
 
 @budget_router.get("", response_class=HTMLResponse)
 def budget_lines(
-    request: Request, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: Literal["next", "previous"] | None = Query(None),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets()},
+        {"request": request, "budgets": service.get_all_budgets(month=month)},
     )
 
 

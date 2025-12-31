@@ -1,4 +1,7 @@
 # MARK: Imports
+from datetime import datetime
+from typing import Literal
+
 from api.datasource.plaid_source import Plaid
 from api.datastore.base import DataStore
 from api.datastore.model import (
@@ -43,9 +46,31 @@ class Service:
     def delete_budget(self, id: int):
         self.store.delete_budget(id)
 
-    def get_all_budgets(self):
-        budgets = self.store.retrieve_budgets()
-        return budgets
+    def get_all_budgets(self, month: Literal["next", "previous"] | None = None):
+        now = datetime.now()
+
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+
+        if month == "next":
+            start = end
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+
+        elif month == "previous":
+            end = start
+            if start.month == 1:
+                start = start.replace(year=start.year - 1, month=12)
+            else:
+                start = start.replace(month=start.month - 1)
+
+        return self.store.filter_budgets(start, end)
 
     def get_budget(self, id: int):
         budget = self.store.select_budget(id)

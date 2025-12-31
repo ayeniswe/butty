@@ -5,22 +5,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budget Dashboard</title>
-  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="/static/js/htmx.min.js"></script>
   <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
 
 <body>
   <main class="dashboard">
     <header class="dashboard__header">
-      <div class="logo-circle"><img class="logo" src="/static/images/logo.png" alt="Logo" class="logo-circle__image"></div>
+      <div class="logo-circle"><img class="logo" src="/static/images/logo.png" alt="Logo" class="logo-circle__image">
+      </div>
       <h1 class="dashboard-header__month">
-                  <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-      December
-                  <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
+        <svg hx-get="/budgets?month=previous" hx-target="#budget-lines-container" hx-swap="innerHTML" class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+        {{ current_month }}
+        <svg hx-get="/budgets?month=next" hx-target="#budget-lines-container" hx-swap="innerHTML"class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
       </h1>
     </header>
     <section class="dashboard__body">
