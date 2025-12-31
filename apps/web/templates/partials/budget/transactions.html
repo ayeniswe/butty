@@ -1,0 +1,111 @@
+<ul class="budget-list__items budget-list__items--scroll" hx-on="
+    click:
+      const btn = this.querySelector('.transaction-create__button');
+      const form = this.querySelector('.transaction-create');
+
+      if (form.classList.contains('is-active')) {
+        form.classList.remove('is-active');
+        btn.classList.add('is-active');
+      }
+    scroll:
+      const form = this.querySelector('.transaction-create.is-active');
+      const btn = this.querySelector('.transaction-create__button');
+
+      if (form) {
+        form.classList.remove('is-active');
+        btn.classList.add('is-active');
+      };
+  ">
+  <li class="budget-tab-create-row">
+  {% if not readonly %}
+    <button type="button"
+            class="transaction-create__button is-active pill pill--ghost"
+            hx-on="click: event.stopPropagation(); const form = this.nextElementSibling; this.classList.remove('is-active'); form.classList.add('is-active'); ">
+      <span class="pill__content">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        New Transaction
+      </span>
+    </button>
+    <div class="transaction-create">
+      <form hx-on="click:event.stopPropagation()"
+            hx-post="/budgets/{{ id }}/transactions"
+            hx-target="#budget-item-details-container"
+            hx-include="this">
+        <input type="text" name="name" placeholder="Description" required />
+        <select name="account_id" required>
+          <option value="" disabled selected>Account</option>
+          {% for account in accounts %}<option value="{{ account.id }}">{{ account.name }}</option>{% endfor %}
+        </select>
+        <input type="number"
+               name="amount"
+               inputmode="decimal"
+               step="0.01"
+               min="0.01"
+               placeholder="Amount"
+               required />
+        <input type="date"
+               name="date"
+               value="{{ today }}"
+               min="{{ month_start }}"
+               max="{{ month_end }}"
+               required />
+        <button type="submit" class="pill pill--primary">Add</button>
+      </form>
+    </div>
+  {% endif %}
+  </li>
+  {% for item in transactions %}
+    <li class="budget-transaction budget-transaction--card"
+        hx-on="click: const note = this.nextElementSibling; const isOpen = note.classList.contains('is-active');  document.querySelectorAll('.budget-transaction-note.is-active') .forEach(el => el.classList.remove('is-active'));  if (!isOpen) { note.classList.add('is-active'); } ">
+      <div>
+        <h4 class="budget-transaction__name">
+          <svg class="note-indicator {% if item.note %}is-active{% endif %}"
+               aria-hidden="true">
+          </svg>
+          {{ item.name }}
+        </h4>
+        {{ item.account_name }}
+      </div>
+      <div class="budget-transaction__meta">
+        <div class="budget-transaction__amount">
+          <h4>$ {{ item.amount / 100 }}</h4>
+          <span>{{ item.occurred_at }}</span>
+        </div>
+        <button class="budget-transaction-delete icon-button icon-button--danger"
+                {% if readonly %}disabled{% endif %}
+                hx-on="click:event.stopPropagation()"
+                aria-label="Delete transaction"
+                hx-delete="/budgets/{{ id }}/transactions/{{ item.id }}"
+                hx-target="#budget-item-details-container"
+                hx-include="this"
+                hx-confirm="Remove this transaction from this budget? The transaction itself will not be deleted.">
+          <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round" />
+            <path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l1-1"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
+    </li>
+    <div class="budget-transaction-note">
+      <textarea placeholder="Enter a note"
+                {% if readonly %}disabled{% endif %}
+                hx-post="/budgets/{{ id }}/transactions/{{ item.id }}/note"
+                hx-trigger="blur"
+                name="note"
+                hx-target="#budget-item-details-container"
+                hx-include="this">{{ item.note }}</textarea>
+    </div>
+  {% endfor %}
+</ul>

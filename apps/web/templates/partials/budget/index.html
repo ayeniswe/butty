@@ -1,0 +1,75 @@
+<div class="budget-list__items">
+    <button class="pill pill--xsmall budget-back-button"
+            hx-get="/budgets?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-target="#budget-lines-container"
+            hx-swap="innerHTML">
+        <span class="pill__content">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            Back
+        </span>
+    </button>
+    <form class="budget-summary is-active" hx-patch="/budgets/{{ id }}">
+        <!-- Name -->
+        <div class="budget-summary__field">
+            <label>Name</label>
+            <div class="budget-summary__editable"
+                 hx-get="/budgets/{{ id }}/edit"
+                 hx-target="this"
+                 hx-vals='{"field":"name"}'
+                 {% if readonly %}hx-disable{% endif %}
+                 hx-swap="outerHTML">{{ name }}</div>
+        </div>
+        <!-- Allocated -->
+        <div class="budget-summary__field">
+            <label>Allocated</label>
+            <div class="budget-summary__editable"
+                 hx-get="/budgets/{{ id }}/edit"
+                 hx-target="this"
+                 hx-vals='{"field":"allocated"}'
+                 {% if readonly %}hx-disable{% endif %}
+                 hx-swap="outerHTML">${{ '%.0f' % ((allocated or 0) / 100) }}</div>
+        </div>
+        <!-- Spent (read-only) -->
+        <div class="budget-summary__field is-readonly">
+            <label>
+                <svg class="icon"
+                     viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <rect x="4" y="11" width="16" height="9" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Spent
+            </label>
+            <div class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
+        </div>
+    </form>
+    <div class="budget-subheader">
+        <h4 class="budget-subheader__tab is-active"
+            hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
+            hx-get="/budgets/{{ id }}/transactions?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-target="#budget-item-details-container"
+            hx-trigger="load, click"
+            hx-swap="innerHTML">Transactions</h4>
+        <h4 class="budget-subheader__tab"
+            hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
+            hx-get="/budgets/{{ id }}/tags?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-target="#budget-item-details-container"
+            hx-swap="innerHTML">Tags</h4>
+    </div>
+    <div class="budget-item-details-container"
+         id="budget-item-details-container"></div>
+    <button class="pill pill--flex pill--danger"
+            hx-delete="/budgets/{{ id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-target="#budget-lines-container"
+            {% if readonly %}disabled{% endif %}
+            hx-confirm="This will permanently delete this budget and its associations. This action cannot be undone. Are you sure?">
+        <span class="pill__content">Delete</span>
+    </button>
+</div>

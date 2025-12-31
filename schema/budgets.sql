@@ -2,9 +2,9 @@ CREATE TABLE IF NOT EXISTS
     budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        amount_allocated REAL NOT NULL DEFAULT 0,
-        amount_spent REAL NOT NULL DEFAULT 0,
-        amount_saved REAL NOT NULL DEFAULT 0,
+        amount_allocated INTEGER NOT NULL DEFAULT 0, -- stored in cents (e.g. $12.34 = 1234)
+        amount_spent INTEGER NOT NULL DEFAULT 0, -- stored in cents (e.g. $12.34 = 1234)
+        amount_saved INTEGER NOT NULL DEFAULT 0, -- stored in cents (e.g. $12.34 = 1234)
         created_at TEXT NOT NULL DEFAULT (datetime ('now')),
         level TEXT CHECK (level IN ('LOW', 'MED', 'HIGH'))
     );

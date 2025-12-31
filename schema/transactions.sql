@@ -7,6 +7,6 @@ CREATE TABLE IF NOT EXISTS
         occurred_at TEXT NOT NULL DEFAULT (datetime ('now')),
         external_id TEXT UNIQUE ON CONFLICT IGNORE,
         account_id INTEGER NOT NULL,
-        note TEXT,
+        note TEXT NOT NULL DEFAULT '',
         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
     );
