@@ -9,6 +9,10 @@ def dollars_to_cents(amount: float | str) -> int:
     )
 
 
+def cents_to_dollars(amount_cents: int) -> float:
+    return float((Decimal(amount_cents) / 100).quantize(Decimal("0.01")))
+
+
 def derive_direction(amount_cents: int, is_credit_card: bool):
     if is_credit_card:
         return TransactionDirection.OUT if amount_cents > 0 else TransactionDirection.IN

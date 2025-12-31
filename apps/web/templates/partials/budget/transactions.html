@@ -64,12 +64,12 @@
           </svg>
           {{ item.name }}
         </h4>
-        {{ item.account }}
+        {{ item.account_name }}
       </div>
       <div class="budget-transaction__meta">
         <div class="budget-transaction__amount">
-          <h4>$ {{ item.amount }}</h4>
-          <span>{{ item.date }}</span>
+          <h4>$ {{ item.amount / 100 }}</h4>
+          <span>{{ item.occurred_at }}</span>
         </div>
         <button class="budget-transaction-delete icon-button icon-button--danger"
                 hx-on="click:event.stopPropagation()"

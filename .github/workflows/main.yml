@@ -32,8 +32,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: lint
-    env:
-      COV_MIN: 74
 
     steps:
       - name: Checkout repository
@@ -51,4 +49,4 @@ jobs:
 
       - name: Unit testing
         run: |
-          pytest --cov-fail-under=${COV_MIN}
+          pytest

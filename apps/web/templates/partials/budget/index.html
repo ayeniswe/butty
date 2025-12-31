@@ -1,6 +1,6 @@
 <div class="budget-list__items">
     <button class="pill pill--xsmall budget-back-button"
-            hx-get="/budget-lines"
+            hx-get="/budgets"
             hx-target="#budget-lines-container"
             hx-swap="innerHTML">
         <span class="pill__content">
@@ -10,7 +10,7 @@
             Back
         </span>
     </button>
-    <form class="budget-summary is-active" hx-post="/budgets/{{ id }}">
+    <form class="budget-summary is-active" hx-patch="/budgets/{{ id }}">
         <!-- Name -->
         <div class="budget-summary__field">
             <label>Name</label>
@@ -27,7 +27,7 @@
                  hx-get="/budgets/{{ id }}/edit"
                  hx-target="this"
                  hx-vals='{"field":"allocated"}'
-                 hx-swap="outerHTML">${{ '%.0f' % allocated }}</div>
+                 hx-swap="outerHTML">${{ '%.0f' % ((allocated or 0) / 100) }}</div>
         </div>
         <!-- Spent (read-only) -->
         <div class="budget-summary__field is-readonly">
@@ -45,7 +45,7 @@
                 </svg>
                 Spent
             </label>
-            <div class="budget-summary__readonly">${{ '%.0f' % spent }}</div>
+            <div class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
         </div>
     </form>
     <div class="budget-subheader">

@@ -1,96 +1,30 @@
+# MARK: Imports
 from api.datasource.plaid_source import Plaid
 from api.datastore.base import DataStore
 from api.datastore.model import (
     PartialAccount,
+    PartialBudget,
     PartialTransaction,
+    TransactionDirection,
     TransactionSource,
     TransactionType,
+    TransactionView,
 )
 from api.model import AppleTransaction, PlaidExchangeRequest
-from api.utils import derive_direction, dollars_to_cents
+from api.utils import cents_to_dollars, derive_direction, dollars_to_cents
 
 
+# MARK: Service Layer
 class Service:
     def __init__(self, store: DataStore):
         self.store = store
         self.plaid_client = Plaid()
-        self.budget_lines: list[dict[str, float]] = [
-            {"id": "1", "name": "Housing", "allocated": 1800, "spent": 1450},
-            {"id": "2", "name": "Transportation", "allocated": 450, "spent": 310},
-            {"id": "3", "name": "Groceries", "allocated": 650, "spent": 480},
-            {"id": "4", "name": "Dining Out", "allocated": 240, "spent": 180},
-            {"id": "5", "name": "Entertainment", "allocated": 200, "spent": 95},
-            {"id": "6", "name": "Savings", "allocated": 800, "spent": 600},
-            {"id": "7", "name": "Utilities", "allocated": 320, "spent": 275},
-            {"id": "8", "name": "Internet & Phone", "allocated": 180, "spent": 160},
-            {"id": "9", "name": "Insurance", "allocated": 420, "spent": 390},
-            {"id": "10", "name": "Healthcare", "allocated": 250, "spent": 110},
-            {"id": "11", "name": "Subscriptions", "allocated": 95, "spent": 88},
-            {"id": "12", "name": "Personal Care", "allocated": 120, "spent": 74},
-            {"id": "13", "name": "Clothing", "allocated": 150, "spent": 60},
-            {"id": "14", "name": "Gifts & Giving", "allocated": 100, "spent": 45},
-            {"id": "15", "name": "Travel", "allocated": 300, "spent": 210},
-            {"id": "16", "name": "Miscellaneous", "allocated": 90, "spent": 32},
-        ]
 
         self.summary_card = {
             "status": "On Track",
             "kicker": "Monthly Health",
             "meta": "Spending 68% of allocation",
         }
-
-        self.transactions = [
-            {
-                "id": "1",
-                "name": "Grocery run",
-                "account_id": "1",
-                "account": "Checking",
-                "amount": -82.55,
-                "date": "Apr 17",
-            },
-            {
-                "id": "2",
-                "name": "Rent",
-                "account_id": "1",
-                "account": "Checking",
-                "amount": -1450.00,
-                "date": "Apr 1",
-            },
-            {
-                "id": "3",
-                "name": "Gym membership",
-                "account_id": "3",
-                "account": "Credit",
-                "amount": -45.00,
-                "date": "Apr 12",
-            },
-            {
-                "id": "4",
-                "note": "RE",
-                "name": "Paycheck",
-                "account_id": "1",
-                "account": "Checking",
-                "amount": 2800.00,
-                "date": "Apr 15",
-            },
-        ]
-
-        self.accounts = [
-            {"name": "Checking", "balance": 1850.24, "id": "1"},
-            {
-                "name": "Savings",
-                "balance": 4620.10,
-                "id": "2",
-            },
-            {"name": "Credit", "balance": -320.14, "id": "3"},
-        ]
-
-        self.tags = [
-            {"name": "PLAIDX", "id": "1"},
-            {"name": "Nike STORE CO LA", "id": "2"},
-            {"name": "Checking OverDraft", "id": "3"},
-        ]
-
         self.sync_actions = [
             {"label": "Chase", "status": "Ready", "action": "Manual sync"},
             {"label": "Savings", "status": "Synced", "action": "Refresh in 24h"},
@@ -101,66 +35,104 @@ class Service:
             },
         ]
 
+    # MARK: - Budget Management
+
     def create_budget(self, name: str, allocated: float):
-        self.budget_lines.append(
-            {
-                "id": str(len(self.budget_lines) + 1),
-                "name": name,
-                "allocated": allocated,
-                "spent": 0.0,
-            }
+        self.store.insert_budget(name, allocated)
+
+    def delete_budget(self, id: int):
+        self.store.delete_budget(id)
+
+    def get_all_budgets(self):
+        budgets = self.store.retrieve_budgets()
+        return budgets
+
+    def get_budget(self, id: int):
+        budget = self.store.select_budget(id)
+        return budget
+
+    def edit_budget_name(self, id: int, name: str):
+        budget = self.store.select_budget(id)
+        self.store.update_budget(
+            PartialBudget(
+                id=budget.id,
+                name=name,
+                amount_allocated=cents_to_dollars(budget.amount_allocated),
+                amount_spent=budget.amount_spent,
+                level=budget.level,
+            )
         )
 
+    def edit_budget_allocated(self, id: int, allocated: float):
+        budget = self.store.select_budget(id)
+        self.store.update_budget(
+            PartialBudget(
+                id=budget.id,
+                name=budget.name,
+                amount_allocated=allocated,
+                amount_spent=budget.amount_spent,
+                level=budget.level,
+            )
+        )
+
+    def get_all_budget_transactions(self, budget_id: int) -> list[TransactionView]:
+        return self.store.retrieve_budget_transactions(budget_id)
+
+    # MARK: - Transactions
+
+    def create_budget_transaction(
+        self, budget_id: int, name: str, amount: float, account_id: str, date: str
+    ):
+        transaction_id = self.create_transaction(name, amount, account_id, date)
+        self.store.insert_budget_transaction(budget_id, transaction_id)
+
     def create_transaction(self, name: str, amount: float, account_id: str, date: str):
-        print(account_id)
-        self.transactions.append(
-            {
-                "id": str(len(self.transactions) + 1),
-                "name": name,
-                "account": self.accounts[int(account_id) - 1]["name"],
-                "account_id": account_id,
-                "amount": amount,
-                "date": date,
-            }
+        return self.store.insert_transaction(
+            PartialTransaction(
+                name,
+                abs(amount),
+                TransactionDirection.OUT,
+                account_id,
+                occurred_at=date,
+            )
         )
 
     def update_transaction_note(self, id: int, note: str):
-        for transaction in self.transactions:
-            if transaction["id"] == str(id):
-                transaction["note"] = note
-                break
-
-    def create_tag(self, name: str):
-        id = len(self.tags) + 1
-        self.tags.append({"name": name, "id": str(id)})
-        return id
-
-    def delete_budget(self, id: int):
-        self.budget_lines = [
-            budget for budget in self.budget_lines if budget["id"] != str(id)
-        ]
+        self.store.update_transaction_note(id, note)
 
     def unassign_transaction_to_budget(self, budget_id: int, transaction_id: int):
-        print(f"Unassigned transaction {transaction_id} to budget {budget_id}")
+        self.store.delete_budget_transaction(budget_id, transaction_id)
 
-    def unassign_tag_to_budget(self, budget_id: int, tag_id: int):
-        print(f"Unassigned tag {tag_id} to budget {budget_id}")
+    # MARK: - Tags
 
-    def delete_transaction(self, id: int):
-        self.transactions = [
-            transaction
-            for transaction in self.transactions
-            if transaction["id"] != str(id)
-        ]
+    def create_tag(self, name: str):
+        return self.store.insert_tag(name)
 
     def delete_tag(self, id: int):
         self.tags = [tag for tag in self.tags if tag["id"] != str(id)]
 
     def search_tags(self, query: str) -> list[dict[str, str]]:
-        return [tag for tag in self.tags if query.lower() in tag["name"].lower()]
+        return [
+            tag
+            for tag in self.store.retrieve_tags()
+            if query.lower() in tag.name.lower()
+        ]
+
+    def get_all_budget_tags(self, budget_id: int) -> list[dict[str, str]]:
+        return self.store.retrieve_budget_tags(budget_id)
 
     def assign_tag_to_budget(self, budget_id: int, tag_id: int):
-        print(f"Assigned tag {tag_id} to budget {budget_id}")
+        self.store.insert_budget_tag(budget_id, tag_id)
+
+    def unassign_tag_from_budget(self, budget_id: int, tag_id: int):
+        self.store.delete_budget_tag(budget_id, tag_id)
+
+    # MARK: - Accounts
+
+    def get_all_accounts(self):
+        return self.store.retrieve_accounts()
+
+    # MARK: - Plaid Integration
 
     def plaid_link_page(self):
         link_token = self.plaid_client.create_link()
@@ -203,7 +175,7 @@ class Service:
     ):
         access_token = self.plaid_client.add_financial_item(request.public_token)
         plaid_id = self.store.insert_plaid_account(access_token)
-        for account in self.plaid_client.get_accounts(access_token):
+        for account in self.plaid_client.retrieve_accounts(access_token):
             PLAID_ACCOUNT_TYPE_MAP = {
                 "credit": TransactionType.CREDIT,
                 "depository": TransactionType.DEPOSITORY,
@@ -225,9 +197,9 @@ class Service:
         # Any APPLE CARDS will not be processed here but rather
         # elsewhere in own domain
 
-        for account in self.store.get_plaid_accounts():
+        for account in self.store.retrieve_plaid_accounts():
             p = self.store.select_plaid_account(account.id)
-            for transaction in self.plaid_client.get_transactions(p.token):
+            for transaction in self.plaid_client.retrieve_transactions(p.token):
                 # Depends on enrichment and not guranteed but ideal
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
@@ -251,6 +223,8 @@ class Service:
                         occurred_at=transaction.date,
                     )
                 )
+
+    # MARK: - Apple Card Integration
 
     def sync_apple_transactions(self, transactions: list[AppleTransaction]):
         # NOTE

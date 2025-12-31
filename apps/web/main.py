@@ -1,3 +1,4 @@
+# MARK: Imports
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -9,11 +10,14 @@ from fastapi.templating import Jinja2Templates
 
 from api.datastore.db import Sqlite3
 from api.service import Service
+from api.utils import cents_to_dollars
+
+# MARK: App Setup & Lifespan
 
 
 @asynccontextmanager
 async def startup(app: FastAPI):
-    app.state.service = Service(Sqlite3)
+    app.state.service = Service(Sqlite3("butty.sqlite"))
     yield
 
 
@@ -33,18 +37,17 @@ templates = Jinja2Templates(directory="apps/web/templates")
 app.mount("/static", StaticFiles(directory="apps/web/static"), name="static")
 
 
+# MARK: Shared Helpers
+
+
 def _base_context(service: Service) -> dict:
     return {
-        "budget_lines": service.budget_lines,
         "summary": service.summary_card,
-        "transactions": service.transactions,
-        "tags": service.tags,
-        "accounts": service.accounts,
         "sync_actions": service.sync_actions,
     }
 
 
-# MARK: === Root ===
+# MARK: Root Routes
 
 
 @root_router.get("/", response_class=HTMLResponse)
@@ -53,15 +56,6 @@ def read_root(
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "index.html", {"request": request, **_base_context(service)}
-    )
-
-
-@root_router.get("/budget-lines", response_class=HTMLResponse)
-def budget_lines(
-    request: Request, service: Annotated[Service, Depends(get_service)]
-) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "partials/budget_lines.html", {"request": request, **_base_context(service)}
     )
 
 
@@ -108,49 +102,16 @@ def explorer_search(
     return templates.TemplateResponse("partials/explorer.html", context)
 
 
-# MARK: - === Budgets ===
+# MARK: - Budget CRUD
 
 
-@budget_router.get("/{id}", response_class=HTMLResponse)
-def budget(
-    id: int, request: Request, service: Annotated[Service, Depends(get_service)]
+@budget_router.get("", response_class=HTMLResponse)
+def budget_lines(
+    request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
     return templates.TemplateResponse(
-        "partials/budget.html",
-        {
-            "request": request,
-            "name": service.budget_lines[id - 1]["name"],
-            "spent": service.budget_lines[id - 1]["spent"],
-            "allocated": service.budget_lines[id - 1]["allocated"],
-            "id": id,
-            **_base_context(service),
-        },
-    )
-
-
-@budget_router.post("/{id}", response_class=HTMLResponse)
-def budget_update(
-    id: int,
-    request: Request,
-    service: Annotated[Service, Depends(get_service)],
-    name: str | None = Form(None),
-    allocated: float | None = Form(None),
-) -> HTMLResponse:
-    if name:
-        service.budget_lines[id - 1]["name"] = name
-    else:
-        service.budget_lines[id - 1]["allocated"] = allocated
-
-    return templates.TemplateResponse(
-        "partials/budget.html",
-        {
-            "request": request,
-            "name": service.budget_lines[id - 1]["name"],
-            "spent": service.budget_lines[id - 1]["spent"],
-            "allocated": service.budget_lines[id - 1]["allocated"],
-            "id": id,
-            **_base_context(service),
-        },
+        "partials/budget_lines.html",
+        {"request": request, "budgets": service.get_all_budgets()},
     )
 
 
@@ -159,12 +120,59 @@ def budget_create(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
     name: str = Form(...),
-    allocated: float = Form(...),
+    allocated: float | None = Form(None),
 ) -> HTMLResponse:
-    service.create_budget(name, allocated)
+    service.create_budget(name, allocated if allocated is not None else 0.0)
 
     return templates.TemplateResponse(
-        "partials/budget_lines.html", {"request": request, **_base_context(service)}
+        "partials/budget_lines.html",
+        {"request": request, "budgets": service.get_all_budgets()},
+    )
+
+
+@budget_router.get("/{id}", response_class=HTMLResponse)
+def budget(
+    id: int, request: Request, service: Annotated[Service, Depends(get_service)]
+) -> HTMLResponse:
+    budget = service.get_budget(id)
+    return templates.TemplateResponse(
+        "partials/budget/index.html",
+        {
+            "request": request,
+            "name": budget.name,
+            "spent": budget.amount_spent,
+            "allocated": budget.amount_allocated,
+            "id": budget.id,
+            **_base_context(service),
+        },
+    )
+
+
+@budget_router.patch("/{id}", response_class=HTMLResponse)
+def budget_update(
+    id: int,
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    name: str | None = Form(None),
+    allocated: float | None = Form(None),
+) -> HTMLResponse:
+    if name:
+        service.edit_budget_name(id, name)
+    else:
+        service.edit_budget_allocated(id, allocated)
+
+    budget = service.get_budget(id)
+
+    return templates.TemplateResponse(
+        "partials/budget/index.html",
+        {
+            "request": request,
+            "name": budget.name,
+            "spent": budget.amount_spent,
+            "allocated": budget.amount_allocated,
+            "id": budget.id,
+            **_base_context(service),
+        },
     )
 
 
@@ -177,7 +185,8 @@ def budget_delete(
     service.delete_budget(id)
 
     return templates.TemplateResponse(
-        "partials/budget_lines.html", {"request": request, **_base_context(service)}
+        "partials/budget_lines.html",
+        {"request": request, "budgets": service.get_all_budgets()},
     )
 
 
@@ -188,11 +197,12 @@ def budget_edit(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
+    budget = service.get_budget(id)
     value = None
     if field == "name":
-        value = service.budget_lines[id - 1]["name"]
+        value = budget.name
     else:
-        value = service.budget_lines[id - 1]["allocated"]
+        value = cents_to_dollars(budget.amount_allocated)
     return templates.TemplateResponse(
         "partials/budget/edit.html",
         {
@@ -205,13 +215,21 @@ def budget_edit(
     )
 
 
+# MARK: - Budget Transactions
+
+
 @budget_router.get("/{id}/transactions", response_class=HTMLResponse)
 def budget_transactions(
     id: int, request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {
+            "request": request,
+            "id": id,
+            "accounts": service.get_all_accounts(),
+            "transactions": service.get_all_budget_transactions(id),
+        },
     )
 
 
@@ -225,11 +243,16 @@ def create_budget_transaction(
     amount: float = Form(...),
     date: str = Form(...),
 ) -> HTMLResponse:
-    service.create_transaction(name, amount, account_id, date)
+    service.create_budget_transaction(id, name, amount, account_id, date)
 
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {
+            "request": request,
+            "id": id,
+            "accounts": service.get_all_accounts(),
+            "transactions": service.get_all_budget_transactions(id),
+        },
     )
 
 
@@ -249,7 +272,11 @@ def update_budget_transaction_note(
 
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {
+            "request": request,
+            "id": id,
+            "transactions": service.get_all_budget_transactions(id),
+        },
     )
 
 
@@ -270,13 +297,16 @@ def budget_transaction_delete(
     )
 
 
+# MARK: - Budget Tags
+
+
 @budget_router.get("/{id}/tags", response_class=HTMLResponse)
 def budget_tags(
     request: Request, id: int, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget/tags.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
     )
 
 
@@ -293,7 +323,7 @@ def create_budget_tag(
 
     return templates.TemplateResponse(
         "partials/budget/tags.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
     )
 
 
@@ -304,11 +334,11 @@ def budget_tag_delete(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
-    service.unassign_tag_to_budget(id, tag_id)
+    service.unassign_tag_from_budget(id, tag_id)
 
     return templates.TemplateResponse(
         "partials/budget/tags.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
     )
 
 
@@ -326,7 +356,7 @@ def tag_search(
     )
 
 
-# MARK: === Tags ===
+# MARK: Tag Routes
 
 
 @tag_router.delete("/{id}", response_class=HTMLResponse)
@@ -342,32 +372,16 @@ def tag_delete(
     )
 
 
+# MARK: Router Registration
+
+
 app.include_router(root_router)
 app.include_router(budget_router)
 app.include_router(tag_router)
 
-#  TO USE FOR LINKING ACCOUNTS
-# @app.get("/plaid/link", response_class=HTMLResponse)
-# def plaid_link_page(plaid: Annotated[Plaid, Depends(get_plaid)], ):
 
-# @app.post("/plaid/exchange")
-# def plaid_exchange(
-#     payload: PlaidExchangeRequest,
-#     plaid: Annotated[Plaid, Depends(get_plaid)],
-#     datastore: Annotated[Sqlite3, Depends(get_datastore)],
-# ):
+# MARK: Dev Entrypoint
 
-# @app.post("/transactions/sync/plaid")
-# def sync_plaid_transactions(
-#     plaid: Annotated[Plaid, Depends(get_plaid)],
-#     datastore: Annotated[Sqlite3, Depends(get_datastore)],
-# ):
-
-# @app.post("/transactions/sync/apple")
-# def sync_apple_transactions(
-#     payload: Annotated[list[AppleTransaction], Body(...)],
-#     datastore: Annotated[Sqlite3, Depends(get_datastore)],
-# ):
 
 if __name__ == "__main__":
     import dotenv

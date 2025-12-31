@@ -33,9 +33,21 @@
   <button type="submit"
           class="budget-list-save pill pill--xsmall pill--secondary">Save</button>
 </form>
-<ul class="budget-list__items budget-list__items--scroll">
-  {% for item in budget_lines %}
-    {% set pct = (item.spent / item.allocated) * 100 | round(0) %}
+<ul class="budget-list__items budget-list__items--scroll"
+    hx-on="
+      scroll:
+        const form = document.querySelector('#budget-summary-create');
+        const btn  = document.querySelector('.budget-list-create');
+        form.classList.remove('is-active');
+        btn.classList.add('is-active');
+    ">
+  {% for item in budgets %}
+    {% if item.amount_allocated and item.amount_allocated > 0 %}
+      {% set pct = (item.amount_spent / item.amount_allocated) * 100 %}
+    {% else %}
+      {% set pct = 0 %}
+    {% endif %}
+    {% set pct = pct | round(0) %}
     {% if pct >= 75 %}
       {% set zone = "progress__bar--danger" %}
     {% elif pct >= 50 %}
@@ -47,7 +59,7 @@
         hx-swap="innerHTML">
       <div class="budget-item__label">{{ item.name }}</div>
       <div class="budget-item__values">
-        <span class="budget-item__amount">${{ '%.0f' % item.spent }} / ${{ '%.0f' % item.allocated }}</span>
+        <span class="budget-item__amount">${{ '%.0f' % (item.amount_spent / 100) }} / ${{ '%.0f' % (item.amount_allocated / 100) }}</span>
         <div class="progress"
              aria-valuemin="0"
              aria-valuemax="100"

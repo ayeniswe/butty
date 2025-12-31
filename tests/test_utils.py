@@ -1,6 +1,7 @@
 import pytest
-from datastore.model import TransactionDirection
-from utils import derive_direction, dollars_to_cents
+
+from api.datastore.model import TransactionDirection
+from api.utils import cents_to_dollars, derive_direction, dollars_to_cents
 
 
 class TestDollarsToCents:
@@ -19,6 +20,24 @@ class TestDollarsToCents:
 
     def test_negative_amount(self):
         assert dollars_to_cents(-2.34) == -234
+
+
+class TestCentsToDollars:
+    def test_integer_amount(self):
+        assert cents_to_dollars(1000) == 10.0
+
+    def test_float_amount(self):
+        assert cents_to_dollars(1025) == 10.25
+
+    def test_string_amount(self):
+        assert cents_to_dollars(550) == 5.5
+
+    def test_round_half_up(self):
+        assert cents_to_dollars(101) == 1.01
+        assert cents_to_dollars(100) == 1.0
+
+    def test_negative_amount(self):
+        assert cents_to_dollars(-234) == -2.34
 
 
 class TestDeriveDirection:

@@ -39,9 +39,21 @@ class Transaction:
 
 
 @dataclass(frozen=True)
-class PartialTransaction:
+class TransactionView:
+    id: int
     name: str
     amount: int
+    direction: TransactionDirection
+    occurred_at: datetime
+    account_name: str
+    external_id: str | None
+    note: str | None
+
+
+@dataclass(frozen=True)
+class PartialTransaction:
+    name: str
+    amount: float
     direction: TransactionDirection
     account_id: int
     note: str | None = None
@@ -56,6 +68,16 @@ class Budget:
     amount_allocated: float
     amount_spent: float
     amount_saved: float
+    created_at: datetime
+    level: BudgetLevel | None = None
+
+
+@dataclass(frozen=True)
+class PartialBudget:
+    id: int
+    name: str
+    amount_allocated: float
+    amount_spent: float
     level: BudgetLevel | None = None
 
 

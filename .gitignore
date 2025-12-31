@@ -7,3 +7,4 @@ coverage.xml
 .env
 *.sqlite*
 .ruff_cache
+seed.sql

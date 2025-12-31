@@ -30,3 +30,11 @@ select = [
 ignore = [
   "E501", # line length handled by formatter
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = [
+  "--cov=api",
+  "--cov-report=term-missing",
+  "--cov-report=xml",
+]

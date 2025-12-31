@@ -2,16 +2,17 @@ import datetime as dt
 from datetime import datetime, timedelta
 
 import pytest
-from datastore.db import Sqlite3
-from datastore.model import (
-    Budget,
+from sqlalchemy import select
+
+from api.datastore.db import Sqlite3
+from api.datastore.model import (
     PartialAccount,
+    PartialBudget,
     PartialTransaction,
     Tag,
     TransactionDirection,
     TransactionSource,
 )
-from sqlalchemy import select
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def test_insert_budget(db: Sqlite3):
         row = conn.execute(select(db.budgets)).first()
 
     assert row.name == "Food"
-    assert row.amount_allocated == 500.0
+    assert row.amount_allocated == 50000
     assert row.amount_spent == 0
     assert row.amount_saved == 0.0
 
@@ -44,12 +45,11 @@ def test_update_budget_updates_amount_saved(db: Sqlite3):
     with db.engine.begin() as conn:
         row = conn.execute(select(db.budgets)).first()
 
-        updated = Budget(
+        updated = PartialBudget(
             id=row.id,
             name="Rent",
-            amount_allocated=1200,
+            amount_allocated=12.00,
             amount_spent=200,
-            amount_saved=0,  # trigger should overwrite
             level="HIGH",
         )
 
@@ -61,7 +61,7 @@ def test_update_budget_updates_amount_saved(db: Sqlite3):
 
 
 def test_delete_budget(db: Sqlite3):
-    db.insert_budget("Temp")
+    db.insert_budget("Temp", 100)
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.budgets)).first()
@@ -72,15 +72,15 @@ def test_delete_budget(db: Sqlite3):
 
 
 def test_select_budget(db: Sqlite3):
-    db.insert_budget("Temp")
+    db.insert_budget("Temp", 100)
     assert db.select_budget(1) is not None
 
 
-def test_get_budgets(db: Sqlite3):
-    db.insert_budget("Temp")
-    db.insert_budget("Temp")
-    db.insert_budget("Temp")
-    assert len(db.get_budgets()) == 3
+def test_retrieve_budgets(db: Sqlite3):
+    db.insert_budget("Temp", 100)
+    db.insert_budget("Temp", 100)
+    db.insert_budget("Temp", 100)
+    assert len(db.retrieve_budgets()) == 3
 
 
 def test_filter_budgets_by_created_at_range(db: Sqlite3):
@@ -233,7 +233,7 @@ def test_select_transaction(db: Sqlite3):
     assert db.select_transaction(1) is not None
 
 
-def test_get_transactions(db: Sqlite3):
+def test_retrieve_transactions(db: Sqlite3):
     db.insert_account(
         PartialAccount(
             name="Default Account",
@@ -251,7 +251,7 @@ def test_get_transactions(db: Sqlite3):
     db.insert_transaction(
         PartialTransaction("Trans 3", 3, TransactionDirection.OUT, account_id=1),
     )
-    assert len(db.get_transactions()) == 3
+    assert len(db.retrieve_transactions()) == 3
 
 
 def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
@@ -367,11 +367,11 @@ def test_select_tag(db: Sqlite3):
     assert db.select_tag(1) is not None
 
 
-def test_get_tags(db: Sqlite3):
+def test_retrieve_tags(db: Sqlite3):
     db.insert_tag("Tag 1")
     db.insert_tag("Tag 2")
     db.insert_tag("Tag 3")
-    assert len(db.get_tags()) == 3
+    assert len(db.retrieve_tags()) == 3
 
 
 # --------------------
@@ -379,27 +379,27 @@ def test_get_tags(db: Sqlite3):
 # --------------------
 
 
-def test_tag_budget(db: Sqlite3):
-    db.insert_budget("Food")
+def test_insert_budget_tag(db: Sqlite3):
+    db.insert_budget("Food", 100)
     db.insert_tag("Essential")
 
     with db.engine.begin() as conn:
         budget = conn.execute(select(db.budgets)).first()
         tag = conn.execute(select(db.tags)).first()
 
-        db.tag_budget(budget.id, tag.id)
+        db.insert_budget_tag(budget.id, tag.id)
 
     assert 1 == budget.id
     assert 1 == tag.id
 
 
-def test_untag_budget(db: Sqlite3):
-    db.insert_budget("Food")
+def test_delete_budget_tag(db: Sqlite3):
+    db.insert_budget("Food", 100)
     db.insert_tag("Essential")
 
     with db.engine.begin() as conn:
-        db.tag_budget(1, 1)
-        db.untag_budget(1, 1)
+        db.insert_budget_tag(1, 1)
+        db.delete_budget_tag(1, 1)
 
         assert conn.execute(select(db.budgets_tags)).first() is None
 
@@ -482,7 +482,7 @@ def test_select_account_by_ext_id(db: Sqlite3):
     assert account.name == "Select Me"
 
 
-def test_get_accounts(db: Sqlite3):
+def test_retrieve_accounts(db: Sqlite3):
     db.insert_account(
         PartialAccount(
             name="Account One",
@@ -508,7 +508,7 @@ def test_get_accounts(db: Sqlite3):
         )
     )
 
-    accounts = db.get_accounts()
+    accounts = db.retrieve_accounts()
 
     assert len(accounts) == 3
     assert accounts[0].name == "Account One"
@@ -559,12 +559,12 @@ def test_select_plaid_account(db: Sqlite3):
     assert account.token == "token-abc"
 
 
-def test_get_plaid_accounts(db: Sqlite3):
+def test_retrieve_plaid_accounts(db: Sqlite3):
     db.insert_plaid_account("t1")
     db.insert_plaid_account("t2")
     db.insert_plaid_account("t3")
 
-    accounts = db.get_plaid_accounts()
+    accounts = db.retrieve_plaid_accounts()
 
     assert len(accounts) == 3
     assert accounts[0].token == "t1"
@@ -588,7 +588,7 @@ def test_delete_plaid_account(db: Sqlite3):
 # --------------------
 
 
-def test_add_budget_transaction_link(db: Sqlite3):
+def test_insert_budget_transaction_link(db: Sqlite3):
     # create budget
     db.insert_budget("Groceries", 500)
 
@@ -616,7 +616,7 @@ def test_add_budget_transaction_link(db: Sqlite3):
         budget_id = conn.execute(select(db.budgets)).first().id
         transaction_id = conn.execute(select(db.transactions)).first().id
 
-        db.add_budget_transaction(budget_id, transaction_id)
+        db.insert_budget_transaction(budget_id, transaction_id)
 
         row = conn.execute(select(db.budgets_transactions)).first()
         assert row is not None
@@ -653,10 +653,149 @@ def test_delete_budget_transaction_link(db: Sqlite3):
         transaction_id = conn.execute(select(db.transactions)).first().id
 
         # pre-link
-        db.add_budget_transaction(budget_id, transaction_id)
+        db.insert_budget_transaction(budget_id, transaction_id)
         assert conn.execute(select(db.budgets_transactions)).first() is not None
 
         # delete link
         db.delete_budget_transaction(budget_id, transaction_id)
 
         assert conn.execute(select(db.budgets_transactions)).first() is None
+
+
+# --------------------
+# Insert Return Value Coverage
+# --------------------
+
+
+def test_insert_tag_returns_id(db: Sqlite3):
+    tag_id = db.insert_tag("ReturnID")
+    assert tag_id == 1
+
+
+def test_insert_account_returns_id(db: Sqlite3):
+    account_id = db.insert_account(
+        PartialAccount(
+            name="Return Account",
+            external_id="ret-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+    assert account_id == 1
+
+
+def test_insert_transaction_returns_id(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Tx Account",
+            external_id="ret-tx",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    tx_id = db.insert_transaction(
+        PartialTransaction(
+            name="Tx",
+            amount=10,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            note="For TX tests",
+        )
+    )
+    assert tx_id == 1
+
+
+# --------------------
+# Account Selection Coverage
+# --------------------
+
+
+def test_select_account_by_id(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="By ID",
+            external_id="by-id",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    account = db.select_account_by_id(1)
+
+    assert account is not None
+    assert account.id == 1
+    assert account.name == "By ID"
+
+
+# --------------------
+# Budget <-> Tag Retrieval Coverage
+# --------------------
+
+
+def test_retrieve_budget_tags(db: Sqlite3):
+    db.insert_budget("Food", 100)
+    db.insert_tag("Essential")
+    db.insert_tag("Groceries")
+
+    with db.engine.begin():
+        db.insert_budget_tag(1, 1)
+        db.insert_budget_tag(1, 2)
+
+    tags = db.retrieve_budget_tags(1)
+    names = {t.name for t in tags}
+
+    assert names == {"Essential", "Groceries"}
+
+
+# --------------------
+# Budget <-> Transaction View Coverage
+# --------------------
+
+
+def test_retrieve_budget_transactions_view(db: Sqlite3):
+    db.insert_budget("Groceries", 500)
+
+    db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="view-acc",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+        )
+    )
+
+    db.insert_transaction(
+        PartialTransaction(
+            name="Old Tx",
+            amount=10,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            occurred_at="2024-01-01",
+        )
+    )
+
+    db.insert_transaction(
+        PartialTransaction(
+            name="New Tx",
+            amount=20,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            occurred_at="2024-02-01",
+        )
+    )
+
+    with db.engine.begin():
+        db.insert_budget_transaction(1, 1)
+        db.insert_budget_transaction(1, 2)
+
+    rows = db.retrieve_budget_transactions(1)
+
+    assert len(rows) == 2
+
+    # ordered DESC by occurred_at
+    assert rows[0].name == "New Tx"
+    assert rows[1].name == "Old Tx"
+
+    # joined account name present
+    assert rows[0].account_name == "Checking"
