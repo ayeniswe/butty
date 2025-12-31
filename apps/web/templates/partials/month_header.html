@@ -1,0 +1,33 @@
+<header class="dashboard__header" id="month-header">
+  <div class="logo-circle"><img class="logo" src="/static/images/logo.png" alt="Logo" class="logo-circle__image"></div>
+  <h1 class="dashboard-header__month">
+    <button class="icon-button"
+            type="button"
+            hx-get="/months"
+            hx-target="#month-header"
+            hx-swap="outerHTML"
+            hx-vals='{"year": {{ year }}, "month": {{ month }}, "direction": "prev"}'>
+      <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+    {% if show_year %}{{ year }} {% endif %}{{ month_name }}
+    <button class="icon-button"
+            type="button"
+            hx-get="/months"
+            hx-target="#month-header"
+            hx-swap="outerHTML"
+            hx-vals='{"year": {{ year }}, "month": {{ month }}, "direction": "next"}'>
+      <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+  </h1>
+</header>
+<form id="month-state" hx-swap-oob="true">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+</form>
+<div id="budget-lines-container" hx-swap-oob="innerHTML">
+  {% include "partials/budget_lines.html" %}
+</div>

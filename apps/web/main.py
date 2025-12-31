@@ -1,5 +1,7 @@
 # MARK: Imports
+from calendar import month_name
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from typing import Annotated
 
 import uvicorn
@@ -47,6 +49,42 @@ def _base_context(service: Service) -> dict:
     }
 
 
+def _month_context(
+    year: int | None = None, month: int | None = None, direction: str | None = None
+) -> dict:
+    today = date.today()
+    selected_year = year or today.year
+    selected_month = month or today.month
+
+    if direction == "prev":
+        if selected_month == 1:
+            selected_month = 12
+            selected_year -= 1
+        else:
+            selected_month -= 1
+    elif direction == "next":
+        if selected_month == 12:
+            selected_month = 1
+            selected_year += 1
+        else:
+            selected_month += 1
+
+    start = datetime(selected_year, selected_month, 1)
+    if selected_month == 12:
+        end = datetime(selected_year + 1, 1, 1)
+    else:
+        end = datetime(selected_year, selected_month + 1, 1)
+
+    return {
+        "month": selected_month,
+        "year": selected_year,
+        "start": start,
+        "end": end,
+        "month_name": month_name[selected_month],
+        "show_year": selected_year < today.year,
+    }
+
+
 # MARK: Root Routes
 
 
@@ -54,8 +92,37 @@ def _base_context(service: Service) -> dict:
 def read_root(
     request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
+    month_ctx = _month_context()
     return templates.TemplateResponse(
-        "index.html", {"request": request, **_base_context(service)}
+        "index.html",
+        {
+            "request": request,
+            **_base_context(service),
+            **month_ctx,
+            "budgets": service.filter_budgets(month_ctx["start"], month_ctx["end"]),
+        },
+    )
+
+
+@root_router.get("/months", response_class=HTMLResponse)
+def change_month(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    year: int,
+    month: int,
+    direction: str | None = None,
+) -> HTMLResponse:
+    month_ctx = _month_context(year, month, direction)
+    budgets = service.filter_budgets(month_ctx["start"], month_ctx["end"])
+
+    return templates.TemplateResponse(
+        "partials/month_header.html",
+        {
+            "request": request,
+            **month_ctx,
+            "budgets": budgets,
+            **_base_context(service),
+        },
     )
 
 
@@ -107,11 +174,20 @@ def explorer_search(
 
 @budget_router.get("", response_class=HTMLResponse)
 def budget_lines(
-    request: Request, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    year: int | None = None,
+    month: int | None = None,
 ) -> HTMLResponse:
+    month_ctx = _month_context(year, month)
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets()},
+        {
+            "request": request,
+            "budgets": service.filter_budgets(
+                month_ctx["start"], month_ctx["end"]
+            ),
+        },
     )
 
 
@@ -181,12 +257,21 @@ def budget_delete(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
     id: int,
+    year: int | None = None,
+    month: int | None = None,
 ) -> HTMLResponse:
     service.delete_budget(id)
 
+    month_ctx = _month_context(year, month)
+
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets()},
+        {
+            "request": request,
+            "budgets": service.filter_budgets(
+                month_ctx["start"], month_ctx["end"]
+            ),
+        },
     )
 
 

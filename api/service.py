@@ -1,4 +1,6 @@
 # MARK: Imports
+from datetime import datetime
+
 from api.datasource.plaid_source import Plaid
 from api.datastore.base import DataStore
 from api.datastore.model import (
@@ -46,6 +48,9 @@ class Service:
     def get_all_budgets(self):
         budgets = self.store.retrieve_budgets()
         return budgets
+
+    def filter_budgets(self, start: datetime, end: datetime):
+        return self.store.filter_budgets(start, end)
 
     def get_budget(self, id: int):
         budget = self.store.select_budget(id)

@@ -1,6 +1,7 @@
 <div class="budget-list__items">
     <button class="pill pill--xsmall budget-back-button"
             hx-get="/budgets"
+            hx-include="#month-state"
             hx-target="#budget-lines-container"
             hx-swap="innerHTML">
         <span class="pill__content">
@@ -65,6 +66,7 @@
          id="budget-item-details-container"></div>
     <button class="pill pill--flex pill--danger"
             hx-delete="/budgets/{{ id }}"
+            hx-include="#month-state"
             hx-target="#budget-lines-container"
             hx-confirm="This will permanently delete this budget and its associations. This action cannot be undone. Are you sure?">
         <span class="pill__content">Delete</span>
