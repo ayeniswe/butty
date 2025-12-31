@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from api.datastore.db import Sqlite3
-from api.datastore.model import (
+from core.datastore.db import Sqlite3
+from core.datastore.model import (
     PartialAccount,
     PartialBudget,
     PartialTransaction,

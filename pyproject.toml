@@ -8,6 +8,8 @@ dependencies = ["fastapi", "sqlalchemy", "pydantic", "jinja2", "uvicorn"]
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "djlint", "pre-commit"]
 
+[tool.setuptools]
+packages = ["core"]
 
 [tool.ruff]
 line-length = 88
@@ -34,7 +36,7 @@ ignore = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = [
-  "--cov=api",
+  "--cov=core",
   "--cov-report=term-missing",
   "--cov-report=xml",
 ]

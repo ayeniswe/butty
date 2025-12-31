@@ -1,5 +1,4 @@
 # MARK: Imports
-from calendar import month_name
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
@@ -10,9 +9,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from api.datastore.db import Sqlite3
-from api.service import Service
-from api.utils import cents_to_dollars
+from core.datastore.db import Sqlite3
+from core.service import Service
+from core.utils import cents_to_dollars, derive_month_context
 
 # MARK: App Setup & Lifespan
 
@@ -50,30 +49,7 @@ def _base_context(service: Service) -> dict:
 
 
 def _month_context(month: int | None = None, year: int | None = None) -> dict:
-    now = datetime.now()
-
-    base_year = year if year is not None else now.year
-    base_month = month if month is not None else now.month
-
-    # Normalize month overflow/underflow (e.g. 0, 13, -1)
-    year_offset, normalized_month = divmod(base_month - 1, 12)
-    current_year = base_year + year_offset
-    current_month = normalized_month + 1
-
-    current = datetime(year=current_year, month=current_month, day=1)
-
-    return {
-        "current_month_name": month_name[current.month][0:3],
-        "current_month": current.month,
-        "prev_year": current.year - 1 if current.month == 1 else current.year,
-        "year": current.year,
-        "now_year": now.year,
-        "now_month": now.month,
-        "readonly": (current_year == now.year and current.month < now.month)
-        or (current_year < now.year),
-        "next_month": current.month + 1,
-        "prev_month": current.month - 1,
-    }
+    return derive_month_context(month, year)
 
 
 # MARK: Root Routes
