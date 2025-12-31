@@ -1,6 +1,5 @@
 # MARK: Imports
 from datetime import datetime
-from typing import Literal
 
 from api.datasource.plaid_source import Plaid
 from api.datastore.base import DataStore
@@ -43,32 +42,31 @@ class Service:
     def create_budget(self, name: str, allocated: float):
         self.store.insert_budget(name, allocated)
 
+    def create_budget_from_copy(
+        self, pre_month: int, pre_year: int, month: int, year: int
+    ):
+        past_budgets = self.get_all_budgets(pre_month, pre_year)
+        current_budgets = self.get_all_budgets(month, year)
+        existing_names = {b.name for b in current_budgets}
+
+        for budget in past_budgets:
+            if budget.name not in existing_names:
+                self.store.insert_budget(
+                    budget.name,
+                    cents_to_dollars(budget.amount_allocated),
+                    datetime(year=year, month=month, day=1),
+                )
+
     def delete_budget(self, id: int):
         self.store.delete_budget(id)
 
-    def get_all_budgets(self, month: Literal["next", "previous"] | None = None):
-        now = datetime.now()
-
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    def get_all_budgets(self, month: int, year: int):
+        start = datetime(day=1, month=month, year=year)
 
         if start.month == 12:
             end = start.replace(year=start.year + 1, month=1)
         else:
             end = start.replace(month=start.month + 1)
-
-        if month == "next":
-            start = end
-            if start.month == 12:
-                end = start.replace(year=start.year + 1, month=1)
-            else:
-                end = start.replace(month=start.month + 1)
-
-        elif month == "previous":
-            end = start
-            if start.month == 1:
-                start = start.replace(year=start.year - 1, month=12)
-            else:
-                start = start.replace(month=start.month - 1)
 
         return self.store.filter_budgets(start, end)
 

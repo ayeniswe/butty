@@ -3,6 +3,10 @@
        hx-patch="/budgets/{{ id }}"
        hx-trigger="blur"
        autofocus
+       {% if value is not none and value|float(default=None) is not none %}
+       type="number"
+       inputmode="decimal"
+       {% endif %}
        hx-include="this"
        hx-on="htmx:beforeRequest: if (this.value.trim() === '') event.preventDefault()"
        required />

@@ -17,6 +17,7 @@
       };
   ">
   <li class="budget-tab-create-row">
+  {% if not readonly %}
     <button type="button"
             class="transaction-create__button is-active pill pill--ghost"
             hx-on="click: event.stopPropagation(); const form = this.nextElementSibling; this.classList.remove('is-active'); form.classList.add('is-active'); ">
@@ -53,6 +54,7 @@
         <button type="submit" class="pill pill--primary">Add</button>
       </form>
     </div>
+  {% endif %}
   </li>
   {% for item in transactions %}
     <li class="budget-transaction budget-transaction--card"
@@ -72,6 +74,7 @@
           <span>{{ item.occurred_at }}</span>
         </div>
         <button class="budget-transaction-delete icon-button icon-button--danger"
+                {% if readonly %}disabled{% endif %}
                 hx-on="click:event.stopPropagation()"
                 aria-label="Delete transaction"
                 hx-delete="/budgets/{{ id }}/transactions/{{ item.id }}"
@@ -97,6 +100,7 @@
     </li>
     <div class="budget-transaction-note">
       <textarea placeholder="Enter a note"
+                {% if readonly %}disabled{% endif %}
                 hx-post="/budgets/{{ id }}/transactions/{{ item.id }}/note"
                 hx-trigger="blur"
                 name="note"

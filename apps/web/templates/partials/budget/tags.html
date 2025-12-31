@@ -16,21 +16,22 @@
             btn.classList.add('is-active');
         };
   ">
-    <li class="budget-tag-search budget-tab-create-row"
-        hx-on="click:event.stopPropagation()">
-        <input type="search"
-               name="query"
-               placeholder="Search tags…"
-               hx-get="/budgets/{{ id }}/tags/search"
-               hx-trigger="input changed delay:200ms"
-               hx-target="#tag-search-results"
-               
-               hx-swap="innerHTML" />
-        
-        <div id="tag-search-results"
-             class="tag-search-dropdown"
-             hx-on=" htmx:afterSwap: this.classList.toggle('is-open', this.innerHTML.trim().length > 0); "></div>
-    </li>
+    {% if not readonly %}
+        <li class="budget-tag-search budget-tab-create-row"
+            hx-on="click:event.stopPropagation()">
+            <input type="search"
+                    name="query"
+                    placeholder="Search tags…"
+                    hx-get="/budgets/{{ id }}/tags/search"
+                    hx-trigger="input changed delay:200ms"
+                    hx-target="#tag-search-results"                    
+                    hx-swap="innerHTML" />
+            
+            <div id="tag-search-results"
+                    class="tag-search-dropdown"
+                    hx-on=" htmx:afterSwap: this.classList.toggle('is-open', this.innerHTML.trim().length > 0); "></div>
+        </li>
+    {% endif %}
     {% for item in tags %}
         <li class="budget-tag budget-tag--card">
             {{ item.name }}
@@ -39,6 +40,7 @@
                     hx-delete="/budgets/{{ id }}/tags/{{ item.id }}"
                     hx-target="#budget-item-details-container"
                     hx-include="this"
+                    {% if readonly %}disabled{% endif %}
                     hx-confirm="Remove this tag from this budget? The tag itself will not be deleted.">
                 <svg class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1 1"

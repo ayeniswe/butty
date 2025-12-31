@@ -1,18 +1,33 @@
 <header>
   <h2 class="section-title">Budget</h2>
-  <button class="budget-list-create is-active pill pill--xsmall pill--secondary"
-          hx-on="click: const form = document.querySelector('#budget-summary-create');  form.classList.toggle('is-active'); this.classList.toggle('is-active'); ">
-    <span class="pill__content">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      </svg>
-      New Item
-    </span>
-  </button>
+  {% if not readonly %}
+  <div class="budget-actions">
+    <button class="budget-list-create is-active pill pill--xsmall pill--secondary"
+            hx-on="click: const form = document.querySelector('#budget-summary-create');  form.classList.toggle('is-active'); this.classList.toggle('is-active'); ">
+      <span class="pill__content">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        New Item
+      </span>
+    </button>
+    <button class="budget-list-create is-active pill pill--xsmall pill--secondary" 
+        hx-post="/budgets/copy?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+        hx-target="#budget-lines-container"
+        hx-swap="innerHTML">
+      <span class="pill__content">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        Use Last Month’s Budget
+      </span>
+    </button>
+  </div>
+  {% endif %}
 </header>
 <form id="budget-summary-create"
       class="budget-summary"
-      hx-post="/budgets"
+      hx-post="/budgets?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
       hx-target="#budget-lines-container"
       hx-swap="innerHTML">
   <!-- Name -->
@@ -54,7 +69,7 @@
       {% set zone = "progress__bar--warning" %}
     {% endif %}
     <li class="budget-item budget-item--card"
-        hx-get="/budgets/{{ item.id }}"
+        hx-get="/budgets/{{ item.id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
         hx-target="#budget-lines-container"
         hx-swap="innerHTML">
       <div class="budget-item__label">{{ item.name }}</div>

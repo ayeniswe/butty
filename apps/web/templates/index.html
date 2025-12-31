@@ -10,38 +10,7 @@
 </head>
 
 <body>
-  <main class="dashboard">
-    <header class="dashboard__header">
-      <div class="logo-circle"><img class="logo" src="/static/images/logo.png" alt="Logo" class="logo-circle__image">
-      </div>
-      <h1 class="dashboard-header__month">
-        <svg hx-get="/budgets?month=previous" hx-target="#budget-lines-container" hx-swap="innerHTML" class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-        {{ current_month }}
-        <svg hx-get="/budgets?month=next" hx-target="#budget-lines-container" hx-swap="innerHTML"class="icon icon--medium" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-      </h1>
-    </header>
-    <section class="dashboard__body">
-      <aside class="budget-list" id="budget-lines-container" hx-get="/budgets" hx-trigger="load"
-        hx-target="#budget-lines-container" hx-swap="innerHTML"
-        hx-on="click: const form = document.querySelector('#budget-summary-create'); const button = document.querySelector('.budget-list-create');  if ( form.contains(event.target) || event.target.closest('.budget-list-create') ) return;  form.classList.remove('is-active'); button.classList.add('is-active'); ">
-      </aside>
-      <!-- <section class="detail-panel">
-          <div class="summary-card" id="summary-card" hx-get="/summary" hx-trigger="load, every 15s" hx-target="#summary-card" hx-swap="innerHTML">
-            {% include "partials/summary_card.html" %}
-          </div>
-
-          <div class="explorer" id="explorer" hx-get="/explorer" hx-trigger="load" hx-target="#explorer" hx-swap="innerHTML">
-            {% include "partials/explorer.html" %}
-          </div>
-        </section> -->
-    </section>
-  </main>
+  {% include "partials/dashboard.html" %}
 </body>
 
 </html>

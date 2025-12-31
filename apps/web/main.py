@@ -1,7 +1,8 @@
 # MARK: Imports
+from calendar import month_name
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated
 
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
@@ -48,17 +49,59 @@ def _base_context(service: Service) -> dict:
     }
 
 
+def _month_context(month: int | None = None, year: int | None = None) -> dict:
+    now = datetime.now()
+
+    base_year = year if year is not None else now.year
+    base_month = month if month is not None else now.month
+
+    # Normalize month overflow/underflow (e.g. 0, 13, -1)
+    year_offset, normalized_month = divmod(base_month - 1, 12)
+    current_year = base_year + year_offset
+    current_month = normalized_month + 1
+
+    current = datetime(year=current_year, month=current_month, day=1)
+
+    return {
+        "current_month_name": month_name[current.month][0:3],
+        "current_month": current.month,
+        "prev_year": current.year - 1 if current.month == 1 else current.year,
+        "year": current.year,
+        "now_year": now.year,
+        "now_month": now.month,
+        "readonly": (current_year == now.year and current.month < now.month)
+        or (current_year < now.year),
+        "next_month": current.month + 1,
+        "prev_month": current.month - 1,
+    }
+
+
 # MARK: Root Routes
 
 
 @root_router.get("/", response_class=HTMLResponse)
 def read_root(
-    request: Request, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
-    current_month = datetime.now().strftime("%B")
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, **_base_context(service), "current_month": current_month},
+        {"request": request, **_month_context(month, year), **_base_context(service)},
+    )
+
+
+@root_router.get("/dashboard", response_class=HTMLResponse)
+def dashboard(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/dashboard.html",
+        {"request": request, **_month_context(month, year), **_base_context(service)},
     )
 
 
@@ -112,11 +155,18 @@ def explorer_search(
 def budget_lines(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
-    month: Literal["next", "previous"] | None = Query(None),
+    month: int,
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets(month=month)},
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                month, datetime.now().year if not year else year
+            ),
+            **_month_context(month, year),
+        },
     )
 
 
@@ -126,18 +176,57 @@ def budget_create(
     service: Annotated[Service, Depends(get_service)],
     name: str = Form(...),
     allocated: float | None = Form(None),
+    month: int = Query(...),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     service.create_budget(name, allocated if allocated is not None else 0.0)
 
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets()},
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                month, datetime.now().year if not year else year
+            ),
+            **_month_context(month, year),
+        },
+    )
+
+
+@budget_router.post("/copy", response_class=HTMLResponse)
+def budget_copy(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    mth_ctx = _month_context(month, year)
+    service.create_budget_from_copy(
+        12 if mth_ctx["prev_month"] == 0 else mth_ctx["prev_month"],
+        mth_ctx["prev_year"],
+        month,
+        year,
+    )
+
+    return templates.TemplateResponse(
+        "partials/budget_lines.html",
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                month, datetime.now().year if not year else year
+            ),
+            **mth_ctx,
+        },
     )
 
 
 @budget_router.get("/{id}", response_class=HTMLResponse)
 def budget(
-    id: int, request: Request, service: Annotated[Service, Depends(get_service)]
+    id: int,
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     budget = service.get_budget(id)
     return templates.TemplateResponse(
@@ -148,6 +237,7 @@ def budget(
             "spent": budget.amount_spent,
             "allocated": budget.amount_allocated,
             "id": budget.id,
+            **_month_context(month, year),
             **_base_context(service),
         },
     )
@@ -160,6 +250,8 @@ def budget_update(
     service: Annotated[Service, Depends(get_service)],
     name: str | None = Form(None),
     allocated: float | None = Form(None),
+    month: int = Query(None),
+    year: int | None = Form(None),
 ) -> HTMLResponse:
     if name:
         service.edit_budget_name(id, name)
@@ -176,6 +268,7 @@ def budget_update(
             "spent": budget.amount_spent,
             "allocated": budget.amount_allocated,
             "id": budget.id,
+            **_month_context(month, year),
             **_base_context(service),
         },
     )
@@ -186,12 +279,20 @@ def budget_delete(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
     id: int,
+    month: int = Query(...),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     service.delete_budget(id)
 
     return templates.TemplateResponse(
         "partials/budget_lines.html",
-        {"request": request, "budgets": service.get_all_budgets()},
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                month, datetime.now().year if not year else year
+            ),
+            **_month_context(month, year),
+        },
     )
 
 
@@ -225,7 +326,11 @@ def budget_edit(
 
 @budget_router.get("/{id}/transactions", response_class=HTMLResponse)
 def budget_transactions(
-    id: int, request: Request, service: Annotated[Service, Depends(get_service)]
+    id: int,
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
@@ -234,6 +339,7 @@ def budget_transactions(
             "id": id,
             "accounts": service.get_all_accounts(),
             "transactions": service.get_all_budget_transactions(id),
+            **_month_context(month, year),
         },
     )
 
@@ -307,11 +413,20 @@ def budget_transaction_delete(
 
 @budget_router.get("/{id}/tags", response_class=HTMLResponse)
 def budget_tags(
-    request: Request, id: int, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "partials/budget/tags.html",
-        {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
+        {
+            "request": request,
+            "id": id,
+            "tags": service.get_all_budget_tags(id),
+            **_month_context(month, year),
+        },
     )
 
 
@@ -358,22 +473,6 @@ def tag_search(
     return templates.TemplateResponse(
         "partials/budget/tag/search.html",
         {"request": request, "tags": tags, "id": id, "query": query},
-    )
-
-
-# MARK: Tag Routes
-
-
-@tag_router.delete("/{id}", response_class=HTMLResponse)
-def tag_delete(
-    request: Request,
-    service: Annotated[Service, Depends(get_service)],
-    id: int,
-) -> HTMLResponse:
-    service.delete_tag(id)
-
-    return templates.TemplateResponse(
-        "partials/budget_lines.html", {"request": request, **_base_context(service)}
     )
 
 

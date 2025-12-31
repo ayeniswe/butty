@@ -20,7 +20,12 @@ class DataStore(ABC):
     def update_budget(self, obj: PartialBudget): ...
 
     @abstractmethod
-    def insert_budget(self, name: str, amount_allocated: float): ...
+    def insert_budget(
+        self,
+        name: str,
+        amount_allocated: float,
+        override_create_date: datetime | None = None,
+    ): ...
 
     @abstractmethod
     def delete_budget(self, id: int): ...

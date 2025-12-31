@@ -47,13 +47,20 @@ class Sqlite3(DataStore):
         self.accounts = self.meta.tables["accounts"]
 
     # MARK: - Budgets
-    def insert_budget(self, name: str, amount_allocated: float):
+    def insert_budget(
+        self,
+        name: str,
+        amount_allocated: float,
+        override_create_date: datetime | None = None,
+    ):
         with self.engine.begin() as conn:
-            conn.execute(
-                insert(self.budgets).values(
-                    name=name, amount_allocated=dollars_to_cents(amount_allocated)
-                )
-            )
+            values = {
+                "name": name,
+                "amount_allocated": dollars_to_cents(amount_allocated),
+            }
+            if override_create_date:
+                values["created_at"] = override_create_date.isoformat()
+            conn.execute(insert(self.budgets).values(values))
 
     def update_budget(self, obj: PartialBudget):
         with self.engine.begin() as conn:
@@ -88,8 +95,8 @@ class Sqlite3(DataStore):
         with self.engine.begin() as conn:
             return conn.execute(
                 select(self.budgets)
-                .where(self.budgets.c.created_at >= start)
-                .where(self.budgets.c.created_at < end)
+                .where(self.budgets.c.created_at >= start.date())
+                .where(self.budgets.c.created_at < end.date())
             ).fetchall()
 
     # MARK: - Transactions

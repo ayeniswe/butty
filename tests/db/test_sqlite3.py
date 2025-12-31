@@ -28,7 +28,7 @@ def db():
 
 
 def test_insert_budget(db: Sqlite3):
-    db.insert_budget("Food", 500)
+    db.insert_budget("Food", 500, datetime(2020, 1, 1))
 
     with db.engine.begin() as conn:
         row = conn.execute(select(db.budgets)).first()
@@ -37,6 +37,7 @@ def test_insert_budget(db: Sqlite3):
     assert row.amount_allocated == 50000
     assert row.amount_spent == 0
     assert row.amount_saved == 0.0
+    assert row.created_at == datetime(2020, 1, 1).isoformat()
 
 
 def test_update_budget_updates_amount_saved(db: Sqlite3):
