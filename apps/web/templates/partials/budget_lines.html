@@ -1,8 +1,11 @@
 <header>
-  <h2 class="section-title">Budget</h2>
+  <div>
+    <p class="budget__kicker">Budget</p>
+    <h3>Budget Lines</h3>
+  </div>
   {% if not readonly %}
   <div class="budget-actions">
-    <button class="budget-list-create is-active pill pill--xsmall pill--secondary"
+    <button class="budget-list-create is-active pill pill--xsmall pill--primary"
             hx-on="click: const form = document.querySelector('#budget-summary-create');  form.classList.toggle('is-active'); this.classList.toggle('is-active'); ">
       <span class="pill__content">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">

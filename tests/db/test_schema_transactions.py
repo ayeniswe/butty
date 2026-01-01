@@ -41,8 +41,8 @@ def test_not_null_constraints(db: sqlite3.Connection):
 
 def test_direction_enum_invalid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0),
     )
 
     with pytest.raises(sqlite3.IntegrityError):
@@ -56,8 +56,8 @@ def test_direction_enum_invalid(db: sqlite3.Connection):
 
 def test_direction_enum_valid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0),
     )
 
     db.execute(
@@ -77,8 +77,8 @@ def test_direction_enum_valid(db: sqlite3.Connection):
 
 def test_default_occurred_at(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0),
     )
 
     db.execute(
@@ -96,8 +96,8 @@ def test_default_occurred_at(db: sqlite3.Connection):
 
 def test_autoincrement_id(db):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0),
     )
 
     db.execute(
@@ -113,8 +113,8 @@ def test_autoincrement_id(db):
 
 def test_external_id_unique_dup_dropped(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0),
     )
 
     db.execute(

@@ -46,6 +46,7 @@ class TransactionView:
     direction: TransactionDirection
     occurred_at: datetime
     account_name: str
+    budget_name: str
     external_id: str | None
     note: str | None
 
@@ -100,6 +101,7 @@ class Account:
     account_type: str
     source: TransactionSource
     name: str
+    balance: int
     plaid_id: int | None
 
 
@@ -109,4 +111,5 @@ class PartialAccount:
     source: TransactionSource
     account_type: str
     name: str
+    balance: int
     plaid_id: int | None = None

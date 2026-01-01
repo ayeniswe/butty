@@ -42,10 +42,7 @@ app.mount("/static", StaticFiles(directory="apps/web/static"), name="static")
 
 
 def _base_context(service: Service) -> dict:
-    return {
-        "summary": service.summary_card,
-        "sync_actions": service.sync_actions,
-    }
+    return {"summary": service.summary_card}
 
 
 def _month_context(month: int | None = None, year: int | None = None) -> dict:
@@ -92,36 +89,57 @@ def summary_card(
 
 @root_router.get("/explorer", response_class=HTMLResponse)
 def explorer_panel(
-    request: Request, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
+    mth_ctx = _month_context()
+    recent_transactions = service.get_all_recent_transactions(
+        mth_ctx["now_month"], mth_ctx["now_year"], True
+    )
+    transactions = service.get_all_transactions()
+    accounts = service.get_all_accounts()
     return templates.TemplateResponse(
-        "partials/explorer.html", {"request": request, **_base_context(service)}
+        "partials/explorer/index.html",
+        {
+            "request": request,
+            "recent_transactions": recent_transactions,
+            "transactions": transactions,
+            "accounts": accounts,
+            **mth_ctx,
+            **_base_context(service),
+        },
     )
 
 
 @root_router.get("/explorer/search", response_class=HTMLResponse)
 def explorer_search(
-    request: Request, service: Annotated[Service, Depends(get_service)], q: str = ""
+    request: Request, service: Annotated[Service, Depends(get_service)], query: str = ""
 ) -> HTMLResponse:
-    query = q.lower().strip()
+    query = query.lower().strip()
+
+    # TODO apply better perf
+    # Raw and dirty but obviously better way
+    transactions = service.get_all_transactions()
     filtered = (
         [
             tx
-            for tx in service.transactions
-            if query in tx["description"].lower()
-            or query in tx["account"].lower()
-            or query in tx["date"].lower()
+            for tx in transactions
+            if query in tx.name.lower()
+            or query in tx.account_name.lower()
+            or query in tx.occurred_at
+            or query in tx.budget_name.lower()
         ]
         if query
-        else service.transactions
+        else transactions
     )
+
     context = {
         "request": request,
-        **_base_context(service),
         "transactions": filtered,
-        "query": q,
+        "query": query,
+        **_base_context(service),
     }
-    return templates.TemplateResponse("partials/explorer.html", context)
+    return templates.TemplateResponse("partials/explorer/search.html", context)
 
 
 # MARK: - Budget CRUD

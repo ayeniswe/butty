@@ -141,6 +141,7 @@ def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     with db.engine.begin() as conn:
@@ -165,9 +166,10 @@ def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
-    ts = "2024-01-01 10:00:00"
+    ts = datetime(2024, 1, 1)
     db.insert_transaction(
         PartialTransaction(
             "Salary", 3000, TransactionDirection.IN, occurred_at=ts, account_id=1
@@ -176,7 +178,7 @@ def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
-    assert row.occurred_at == ts
+    assert row.occurred_at == "2024-01-01T00:00:00"
 
 
 def test_update_transaction_note(db: Sqlite3):
@@ -186,6 +188,7 @@ def test_update_transaction_note(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     db.insert_transaction(
@@ -208,6 +211,7 @@ def test_delete_transaction(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     db.insert_transaction(
@@ -226,6 +230,7 @@ def test_select_transaction(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     db.insert_transaction(
@@ -235,24 +240,38 @@ def test_select_transaction(db: Sqlite3):
 
 
 def test_retrieve_transactions(db: Sqlite3):
+    # create account
     db.insert_account(
         PartialAccount(
             name="Default Account",
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
-    db.insert_transaction(
+
+    # create budget
+    db.insert_budget("General", 100)
+
+    # create transactions
+    tx1 = db.insert_transaction(
         PartialTransaction("Trans 1", 1, TransactionDirection.OUT, account_id=1),
     )
-    db.insert_transaction(
+    tx2 = db.insert_transaction(
         PartialTransaction("Trans 2", 2, TransactionDirection.IN, account_id=1),
     )
-    db.insert_transaction(
+    tx3 = db.insert_transaction(
         PartialTransaction("Trans 3", 3, TransactionDirection.OUT, account_id=1),
     )
-    assert len(db.retrieve_transactions()) == 3
+
+    # link transactions to budget
+    db.insert_budget_transaction(1, tx1)
+    db.insert_budget_transaction(1, tx2)
+    db.insert_budget_transaction(1, tx3)
+
+    rows = db.retrieve_transactions()
+    assert len(rows) == 3
 
 
 def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
@@ -263,6 +282,7 @@ def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
             external_id="ext-filter",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -417,6 +437,7 @@ def test_insert_account_without_plaid_id(db: Sqlite3):
             external_id="ext-manual",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -438,6 +459,7 @@ def test_insert_account_with_plaid_id(db: Sqlite3):
             source="PLAID",
             plaid_id=1,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -456,6 +478,7 @@ def test_select_account(db: Sqlite3):
             external_id="ext-sel",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -473,6 +496,7 @@ def test_select_account_by_ext_id(db: Sqlite3):
             external_id="ext-sel",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -490,6 +514,7 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     db.insert_account(
@@ -498,6 +523,7 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-2",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     db.insert_account(
@@ -506,6 +532,7 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-3",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -524,6 +551,7 @@ def test_delete_account(db: Sqlite3):
             external_id="ext-del",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -600,6 +628,7 @@ def test_insert_budget_transaction_link(db: Sqlite3):
             external_id="ext-bt-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -636,6 +665,7 @@ def test_delete_budget_transaction_link(db: Sqlite3):
             external_id="ext-bt-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -680,6 +710,7 @@ def test_insert_account_returns_id(db: Sqlite3):
             external_id="ret-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
     assert account_id == 1
@@ -692,6 +723,7 @@ def test_insert_transaction_returns_id(db: Sqlite3):
             external_id="ret-tx",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -719,6 +751,7 @@ def test_select_account_by_id(db: Sqlite3):
             external_id="by-id",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -763,6 +796,7 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             external_id="view-acc",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
         )
     )
 
@@ -772,7 +806,7 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             amount=10,
             direction=TransactionDirection.OUT,
             account_id=1,
-            occurred_at="2024-01-01",
+            occurred_at=datetime(2024, 1, 1),
         )
     )
 
@@ -782,7 +816,7 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             amount=20,
             direction=TransactionDirection.OUT,
             account_id=1,
-            occurred_at="2024-02-01",
+            occurred_at=datetime(2024, 2, 1),
         )
     )
 

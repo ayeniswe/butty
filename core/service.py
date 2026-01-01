@@ -27,15 +27,18 @@ class Service:
             "kicker": "Monthly Health",
             "meta": "Spending 68% of allocation",
         }
-        self.sync_actions = [
-            {"label": "Chase", "status": "Ready", "action": "Manual sync"},
-            {"label": "Savings", "status": "Synced", "action": "Refresh in 24h"},
-            {
-                "label": "Brokerage",
-                "status": "Needs login",
-                "action": "Re-authenticate",
-            },
-        ]
+
+    @staticmethod
+    def __create_start_end_range(month: int, year: int, latest: bool = False):
+        start = datetime(
+            day=datetime.now().day if latest else 1, month=month, year=year
+        )
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+
+        return {"start": start, "end": end}
 
     # MARK: - Budget Management
 
@@ -61,14 +64,9 @@ class Service:
         self.store.delete_budget(id)
 
     def get_all_budgets(self, month: int, year: int):
-        start = datetime(day=1, month=month, year=year)
-
-        if start.month == 12:
-            end = start.replace(year=start.year + 1, month=1)
-        else:
-            end = start.replace(month=start.month + 1)
-
-        return self.store.filter_budgets(start, end)
+        return self.store.filter_budgets(
+            **Service.__create_start_end_range(month, year)
+        )
 
     def get_budget(self, id: int):
         budget = self.store.select_budget(id)
@@ -119,6 +117,14 @@ class Service:
                 occurred_at=date,
             )
         )
+
+    def get_all_recent_transactions(self, month: int, year: int, latest: bool = False):
+        return self.store.filter_transactions(
+            **Service.__create_start_end_range(month, year, latest)
+        )
+
+    def get_all_transactions(self):
+        return self.store.retrieve_transactions()
 
     def update_transaction_note(self, id: int, note: str):
         self.store.update_transaction_note(id, note)

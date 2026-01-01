@@ -26,8 +26,8 @@ def test_insert_budget_transaction_link(db: sqlite3.Connection):
 
     # create account
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Checking", "ext-1", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Checking", "ext-1", "APPLE", "DEPOSITORY", 0),
     )
     account_id = db.execute("SELECT id FROM accounts").fetchone()[0]
 
@@ -60,8 +60,8 @@ def test_insert_budget_transaction_link(db: sqlite3.Connection):
 def test_budget_transaction_rejects_invalid_budget(db: sqlite3.Connection):
     # create account + transaction
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Checking", "ext-2", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Checking", "ext-2", "APPLE", "DEPOSITORY", 0),
     )
     account_id = db.execute("SELECT id FROM accounts").fetchone()[0]
 
@@ -106,8 +106,8 @@ def test_budget_transaction_composite_pk_enforced(db: sqlite3.Connection):
 
     # setup account + transaction
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Checking", "ext-3", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Checking", "ext-3", "APPLE", "DEPOSITORY", 0),
     )
     account_id = db.execute("SELECT id FROM accounts").fetchone()[0]
 
@@ -144,8 +144,8 @@ def test_cascade_delete_budget_removes_budget_transactions(db: sqlite3.Connectio
 
     # create account + transaction
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Checking", "ext-4", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Checking", "ext-4", "APPLE", "DEPOSITORY", 0),
     )
     account_id = db.execute("SELECT id FROM accounts").fetchone()[0]
 
@@ -185,8 +185,8 @@ def test_cascade_delete_transaction_removes_budget_transactions(db: sqlite3.Conn
 
     # create account
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Checking", "ext-5", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
+        ("Checking", "ext-5", "APPLE", "DEPOSITORY", 0),
     )
     account_id = db.execute("SELECT id FROM accounts").fetchone()[0]
 

@@ -110,7 +110,7 @@ class Sqlite3(DataStore):
                 "account_id": obj.account_id,
             }
             if obj.occurred_at:
-                values["occurred_at"] = obj.occurred_at
+                values["occurred_at"] = obj.occurred_at.isoformat()
             if obj.note:
                 values["note"] = obj.note
             result = conn.execute(
@@ -136,16 +136,40 @@ class Sqlite3(DataStore):
                 select(self.transactions).where(self.transactions.c.id == id)
             ).fetchone()
 
-    def retrieve_transactions(self) -> list[Transaction]:
-        with self.engine.begin() as conn:
-            return conn.execute(select(self.transactions)).fetchall()
-
-    def filter_transactions(self, start: datetime, end: datetime) -> list[Transaction]:
+    def retrieve_transactions(self) -> list[TransactionView]:
         with self.engine.begin() as conn:
             return conn.execute(
-                select(self.transactions)
-                .where(self.transactions.c.occurred_at >= start)
-                .where(self.transactions.c.occurred_at < end)
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
+                .join(
+                    self.budgets_transactions,
+                    self.transactions.c.id
+                    == self.budgets_transactions.c.transaction_id,
+                )
+                .join(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
+                )
+                .join(
+                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+            ).fetchall()
+
+    def filter_transactions(
+        self, start: datetime, end: datetime
+    ) -> list[TransactionView]:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.transactions, self.accounts.c.name.label("account_name"))
+                .join(
+                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+                .where(self.transactions.c.occurred_at >= start.date())
+                .where(self.transactions.c.occurred_at < end.date())
+                .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
 
     # MARK: - Tags
@@ -231,6 +255,7 @@ class Sqlite3(DataStore):
             "external_id": obj.external_id,
             "source": obj.source,
             "account_type": obj.account_type,
+            "balance": obj.balance,
         }
         if obj.plaid_id:
             values["plaid_id"] = obj.plaid_id

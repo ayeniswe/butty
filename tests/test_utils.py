@@ -89,9 +89,7 @@ class TestDeriveMonthContext:
         assert ctx["next_month"] == 2
 
     def test_readonly_for_non_current_month(self):
-        today = date.today()
-
-        ctx = derive_month_context(month=today.month - 1, year=today.year)
+        ctx = derive_month_context(month=12, year=2025)
         assert ctx["readonly"] is True
-        assert ctx["year"] == today.year
-        assert ctx["current_month"] == today.month - 1
+        assert ctx["year"] == 2025
+        assert ctx["current_month"] == 12

@@ -1,0 +1,91 @@
+<div class="explorer__header">
+  <div>
+    <p class="explorer__kicker">Explorer</p>
+    <h3>Transactions & Accounts</h3>
+  </div>
+  <button class="pill pill--medium pill--primary">+ Add Account</button>
+</div>
+
+<section class="explorer-section">
+  <!-- Explorer Recent -->
+  <aside class="explorer-recent">
+    <div class="card card--stacked">
+      <header class="card__header">
+        <span class="badge">Recent</span>
+        <strong>Transactions</strong>
+      </header>
+      <ul class="list list--transactions">
+        {% for transaction in recent_transactions %}
+        <li>
+          <div>
+            <p class="list__title">{{ transaction.name }}</p>
+            <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at }}</p>
+          </div>
+          <span
+            class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
+            {{ '$%.2f' % (transaction.amount / 100) }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card card--stacked">
+      <header class="card__header">
+        <span class="badge">Accounts</span>
+        <strong>Balances</strong>
+      </header>
+      <ul class="list list--accounts">
+        {% for account in accounts %}
+        <li>
+          <p class="list__title">{{ account.name }}</p>
+          <p class="list__meta">Updated just now</p>
+          <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+
+  <aside class="explorer-search">
+    <!-- Explorer Search -->
+    <div class="explorer-search__bar">
+      <input type="search" name="query" placeholder="Search transactions, accounts, budgets…" hx-get="/explorer/search"
+        hx-trigger="input changed delay:200ms" hx-target="#explorer-table-rows-container" hx-swap="innerHTML" />
+      <svg class="icon icon--medium clickable" xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 5h18" />
+        <path d="M6 12h12" />
+        <path d="M10 19h4" />
+      </svg>
+    </div>
+
+    <!-- Explorer Table -->
+    <div class="explorer-search__table">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="align-right">Amount</th>
+            <th class="align-center">Type</th>
+            <th>Account</th>
+            <th>Budget</th>
+          </tr>
+        </thead>
+        <tbody id="explorer-table-rows-container">
+          {% for transaction in transactions %}
+          <tr>
+            <td>{{ transaction.occurred_at }}</td>
+            <td class="strong">{{ transaction.name }}</td>
+            <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
+            <td class="align-center"><span class="align-center {{ 'text--danger' if transaction.direction == 'OUT' else 'text--success' }}">{{ transaction.direction }}</span></td>
+            <td>{{ transaction.account_name }}</td>
+            <td>{{ transaction.budget_name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </aside>
+</section>

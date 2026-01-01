@@ -111,6 +111,7 @@ select:hover {
   border-color: var(--color-input-border-hover);
 }
 
+.explorer-search__bar:hover,
 input:focus,
 textarea:focus,
 select:focus {
@@ -612,10 +613,11 @@ textarea[readonly] {
 
 .detail-panel {
   flex: 1;
-  display: grid;
-  grid-template-rows: 0.75fr 1.25fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--gap);
   min-height: 0;
+  min-width: 0;
 }
 
 .summary-card {
@@ -660,13 +662,145 @@ textarea[readonly] {
   box-shadow: var(--shadow-elevated);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
   overflow: hidden;
-  /* content must fit */
 }
+
+
+.explorer-search {
+  gap: 8px;
+  flex-direction: column;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.explorer-search__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-input-border);
+  overflow-x: auto;
+}
+
+.explorer-search__bar input {
+  box-shadow: none;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.explorer-search__bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.explorer-search__bar input::placeholder {
+  color: var(--color-input-placeholder);
+}
+
+/* Table wrapper */
+.explorer-search__table {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-input-border);
+  background: var(--color-bg-surface);
+
+  /* scrolling */
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+/* Table */
+.explorer-search__table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Header */
+.explorer-search__table table thead th {
+  padding: 12px 14px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-bg-surface) 92%, var(--color-bg-app));
+  border-bottom: 1px solid var(--color-input-border);
+  text-align: left;
+}
+
+/* Rows */
+.explorer-search__table table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.explorer-search__table table tbody tr:hover {
+  background: var(--color-highlight-soft);
+}
+
+/* Cells */
+.explorer-search__table table td {
+  padding: 12px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(31, 19, 15, 0.08);
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.explorer-search__table table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Header cell */
+.explorer-search__table table th.align-center {
+  text-align: center;
+}
+
+/* Sticky table header for explorer table */
+.explorer-search__table table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Alignment helpers */
+.align-right {
+  text-align: right;
+}
+
+.align-center {
+  text-align: center;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+
+/* Direction pills (reuse system colors) */
+.explorer-search__table table .pill--success {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.explorer-search__table table .pill--danger {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+}
+
 
 .explorer__header {
   display: flex;
@@ -675,6 +809,7 @@ textarea[readonly] {
   gap: 12px;
 }
 
+.budget__kicker,
 .explorer__kicker {
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -682,24 +817,18 @@ textarea[readonly] {
   font-size: 12px;
 }
 
-.explorer__search {
+.explorer-section {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
+  gap: 8px;
+  grid-template-columns: 0.5fr 1fr;
+  flex: 1;
+  min-height: 0;
 }
 
-.explorer__search input {
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(31, 19, 15, 0.15);
-  font-size: 14px;
-}
-
-.explorer__grid {
+.explorer-recent {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(90px, 1fr));
-  gap: 12px;
+  gap: 8px;
+  min-height: 0;
 }
 
 .card {
@@ -711,6 +840,7 @@ textarea[readonly] {
   justify-content: center;
   font-weight: 700;
   color: var(--color-text-primary);
+  min-height: 0;
 }
 
 .card--stacked {
@@ -746,13 +876,14 @@ textarea[readonly] {
   flex-direction: column;
   gap: 8px;
   font-weight: 400;
+  overflow-y: auto;
 }
 
 .list li {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
-  background: #fff;
+  background: var(--color-bg-surface);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -872,10 +1003,18 @@ textarea[readonly] {
   color: var(--color-text-inverse);
 }
 
+.text--success {
+  color: var(--color-success);
+}
+
 /* Danger — destructive actions */
 .pill--danger {
   background: var(--color-danger);
   color: var(--color-text-inverse);
+}
+
+.text--danger {
+  color: var(--color-danger);
 }
 
 /* Ghost — low emphasis actions */
@@ -918,7 +1057,7 @@ textarea[readonly] {
     gap: 12px;
   }
 
-  .explorer__grid {
+  .explorer-recent {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
   }
