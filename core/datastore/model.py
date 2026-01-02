@@ -46,7 +46,7 @@ class TransactionView:
     direction: TransactionDirection
     occurred_at: datetime
     account_name: str
-    budget_name: str
+    budget_name: str | None
     external_id: str | None
     note: str | None
 

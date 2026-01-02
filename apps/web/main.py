@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from core.datastore.db import Sqlite3
+from core.model import AppleTransaction
 from core.service import Service
 from core.utils import cents_to_dollars, derive_month_context
 
@@ -27,6 +28,9 @@ app = FastAPI(title="Budget Dashboard", lifespan=startup)
 # Routers
 root_router = APIRouter()
 budget_router = APIRouter(prefix="/budgets")
+link_router = APIRouter(prefix="/link")
+account_router = APIRouter(prefix="/accounts")
+transactions_router = APIRouter(prefix="/transactions")
 tag_router = APIRouter(prefix="/tags")
 
 
@@ -47,6 +51,21 @@ def _base_context(service: Service) -> dict:
 
 def _month_context(month: int | None = None, year: int | None = None) -> dict:
     return derive_month_context(month, year)
+
+
+def _activity_context(service: Annotated[Service, Depends(get_service)]) -> dict:
+    mth_ctx = _month_context()
+    recent_transactions = service.get_all_recent_transactions(
+        mth_ctx["now_month"], mth_ctx["now_year"], True
+    )
+    transactions = service.get_all_transactions()
+    accounts = service.get_all_accounts()
+    return {
+        "recent_transactions": recent_transactions,
+        "transactions": transactions,
+        "accounts": accounts,
+        **mth_ctx,
+    }
 
 
 # MARK: Root Routes
@@ -92,20 +111,11 @@ def explorer_panel(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
-    mth_ctx = _month_context()
-    recent_transactions = service.get_all_recent_transactions(
-        mth_ctx["now_month"], mth_ctx["now_year"], True
-    )
-    transactions = service.get_all_transactions()
-    accounts = service.get_all_accounts()
     return templates.TemplateResponse(
         "partials/explorer/index.html",
         {
             "request": request,
-            "recent_transactions": recent_transactions,
-            "transactions": transactions,
-            "accounts": accounts,
-            **mth_ctx,
+            **_activity_context(service),
             **_base_context(service),
         },
     )
@@ -127,7 +137,8 @@ def explorer_search(
             if query in tx.name.lower()
             or query in tx.account_name.lower()
             or query in tx.occurred_at
-            or query in tx.budget_name.lower()
+            or tx.budget_name
+            and query in tx.budget_name.lower()
         ]
         if query
         else transactions
@@ -470,12 +481,64 @@ def tag_search(
     )
 
 
+# MARK: Transactions
+
+
+@transactions_router.get("/sync", response_class=HTMLResponse)
+def sync_transactions(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+) -> HTMLResponse:
+    service.sync_all_transactions()
+    return templates.TemplateResponse(
+        "partials/explorer/index.html",
+        {"request": request, **_activity_context(service)},
+    )
+
+
+@transactions_router.post("/sync/apple", response_class=HTMLResponse)
+def sync_transactions_apple_webhook(
+    service: Annotated[Service, Depends(get_service)], payload: list[AppleTransaction]
+):
+    service.sync_apple_transactions(payload)
+
+
+# MARK: Plaid
+
+
+@link_router.get("", response_class=HTMLResponse)
+def link_by_plaid(
+    request: Request, service: Annotated[Service, Depends(get_service)]
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/plaid_button.html",
+        {"request": request, "link_token": service.get_plaid_token()},
+    )
+
+
+@account_router.post("/plaid", response_class=HTMLResponse)
+def create_account_by_plaid(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    public_token: str = Form(...),
+) -> HTMLResponse:
+    service.create_accounts_by_plaid(public_token)
+    service.sync_all_transactions()
+    return templates.TemplateResponse(
+        "partials/explorer/index.html",
+        {"request": request, **_activity_context(service)},
+    )
+
+
 # MARK: Router Registration
 
 
 app.include_router(root_router)
 app.include_router(budget_router)
 app.include_router(tag_router)
+app.include_router(link_router)
+app.include_router(account_router)
+app.include_router(transactions_router)
 
 
 # MARK: Dev Entrypoint

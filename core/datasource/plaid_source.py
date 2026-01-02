@@ -31,7 +31,7 @@ class Plaid:
         )
         self.client = PlaidApi(ApiClient(config))
 
-    def create_link(self):
+    def create_link(self) -> str:
         request = LinkTokenCreateRequest(
             client_name="Butty",
             language="en",
@@ -62,7 +62,7 @@ class Plaid:
 
         return transactions
 
-    def retrieve_accounts(self, access_token: str) -> list[AccountBase]:
+    def retrieve_accounts(self, access_token: str) -> tuple[list[AccountBase], str]:
         request = AccountsGetRequest(access_token=access_token)
         response = self.client.accounts_get(request)
         return response["accounts"]

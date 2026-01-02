@@ -145,16 +145,16 @@ class Sqlite3(DataStore):
                     self.budgets.c.name.label("budget_name"),
                 )
                 .join(
+                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+                .outerjoin(
                     self.budgets_transactions,
                     self.transactions.c.id
                     == self.budgets_transactions.c.transaction_id,
                 )
-                .join(
+                .outerjoin(
                     self.budgets,
                     self.budgets_transactions.c.budget_id == self.budgets.c.id,
-                )
-                .join(
-                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
                 )
             ).fetchall()
 

@@ -1,0 +1,12 @@
+<button class="pill pill--xsmall pill--secondary"
+        hx-get="/link"
+        hx-target="this"
+        hx-swap="outerHTML"
+        hx-on="htmx:load: linkAccountByPlaid('{{ link_token }}')">
+    <span class="pill__content">
+        <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        Add Account
+    </span>
+</button>

@@ -12,7 +12,7 @@ from core.datastore.model import (
     TransactionType,
     TransactionView,
 )
-from core.model import AppleTransaction, PlaidExchangeRequest
+from core.model import AppleTransaction
 from core.utils import cents_to_dollars, derive_direction, dollars_to_cents
 
 
@@ -132,128 +132,42 @@ class Service:
     def unassign_transaction_to_budget(self, budget_id: int, transaction_id: int):
         self.store.delete_budget_transaction(budget_id, transaction_id)
 
-    # MARK: - Tags
+    def sync_all_transactions(self):
+        self.__sync_plaid_transactions()
 
-    def create_tag(self, name: str):
-        return self.store.insert_tag(name)
+    # MARK: Transactions (Plaid Integration)
 
-    def delete_tag(self, id: int):
-        self.tags = [tag for tag in self.tags if tag["id"] != str(id)]
-
-    def search_tags(self, query: str) -> list[dict[str, str]]:
-        return [
-            tag
-            for tag in self.store.retrieve_tags()
-            if query.lower() in tag.name.lower()
-        ]
-
-    def get_all_budget_tags(self, budget_id: int) -> list[dict[str, str]]:
-        return self.store.retrieve_budget_tags(budget_id)
-
-    def assign_tag_to_budget(self, budget_id: int, tag_id: int):
-        self.store.insert_budget_tag(budget_id, tag_id)
-
-    def unassign_tag_from_budget(self, budget_id: int, tag_id: int):
-        self.store.delete_budget_tag(budget_id, tag_id)
-
-    # MARK: - Accounts
-
-    def get_all_accounts(self):
-        return self.store.retrieve_accounts()
-
-    # MARK: - Plaid Integration
-
-    def plaid_link_page(self):
-        link_token = self.plaid_client.create_link()
-
-        return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <title>Link Bank</title>
-    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-    </head>
-    <body>
-    <script>
-        const handler = Plaid.create({{
-        token: "{link_token}",
-        onSuccess: (public_token) => {{
-            fetch("/plaid/exchange", {{
-            method: "POST",
-            headers: {{ "Content-Type": "application/json" }},
-            body: JSON.stringify({{
-                public_token
-            }})
-            }}).then(() => {{
-            alert("Account linked successfully");
-            }});
-        }}
-        }});
-
-        window.addEventListener("load", () => {{
-        handler.open();
-        }});
-    </script>
-    </body>
-    </html>
-    """
-
-    def plaid_exchange(
-        self,
-        request: PlaidExchangeRequest,
-    ):
-        access_token = self.plaid_client.add_financial_item(request.public_token)
-        plaid_id = self.store.insert_plaid_account(access_token)
-        for account in self.plaid_client.retrieve_accounts(access_token):
-            PLAID_ACCOUNT_TYPE_MAP = {
-                "credit": TransactionType.CREDIT,
-                "depository": TransactionType.DEPOSITORY,
-                "investment": TransactionType.INVESTMENT,
-                "loan": TransactionType.LOAN,
-            }
-            self.store.insert_account(
-                PartialAccount(
-                    account.account_id,
-                    TransactionSource.PLAID,
-                    PLAID_ACCOUNT_TYPE_MAP.get(account.type.value),
-                    account.name,
-                    plaid_id,
-                )
-            )
-
-    def sync_plaid_transactions(self):
+    def __sync_plaid_transactions(self):
         # NOTE
         # Any APPLE CARDS will not be processed here but rather
         # elsewhere in own domain
 
         for account in self.store.retrieve_plaid_accounts():
             p = self.store.select_plaid_account(account.id)
+            account_type = self.store.select_account_by_id(account.id).account_type
             for transaction in self.plaid_client.retrieve_transactions(p.token):
                 # Depends on enrichment and not guranteed but ideal
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
 
                 amount = transaction.amount
-                account_id = transaction.account_id
-                is_credit = (
-                    self.store.select_account_by_ext_id(account_id).account_type
-                    == TransactionType.CREDIT
+                direction = derive_direction(
+                    amount, account_type == TransactionType.CREDIT
                 )
-                direction = derive_direction(amount, is_credit)
                 # NOTE
                 # All transactions should be stored as cents
                 self.store.insert_transaction(
                     PartialTransaction(
                         name,
-                        dollars_to_cents(amount),
+                        amount,
                         direction,
-                        account_id,
+                        account.id,
                         external_id=transaction.transaction_id,
                         occurred_at=transaction.date,
                     )
                 )
 
-    # MARK: - Apple Card Integration
+    # MARK: Transactions (Apple Card Integration)
 
     def sync_apple_transactions(self, transactions: list[AppleTransaction]):
         # NOTE
@@ -285,3 +199,61 @@ class Service:
                         occurred_at=transaction.date,
                     )
                 )
+
+    # MARK: - Tags
+
+    def create_tag(self, name: str):
+        return self.store.insert_tag(name)
+
+    def delete_tag(self, id: int):
+        self.tags = [tag for tag in self.tags if tag["id"] != str(id)]
+
+    def search_tags(self, query: str) -> list[dict[str, str]]:
+        return [
+            tag
+            for tag in self.store.retrieve_tags()
+            if query.lower() in tag.name.lower()
+        ]
+
+    def get_all_budget_tags(self, budget_id: int) -> list[dict[str, str]]:
+        return self.store.retrieve_budget_tags(budget_id)
+
+    def assign_tag_to_budget(self, budget_id: int, tag_id: int):
+        self.store.insert_budget_tag(budget_id, tag_id)
+
+    def unassign_tag_from_budget(self, budget_id: int, tag_id: int):
+        self.store.delete_budget_tag(budget_id, tag_id)
+
+    # MARK: - Accounts
+
+    def get_all_accounts(self):
+        return self.store.retrieve_accounts()
+
+    def get_plaid_token(self):
+        return self.plaid_client.create_link()
+
+    # MARK: - Accounts (Plaid Integration)
+
+    def create_accounts_by_plaid(
+        self,
+        public_token: str,
+    ):
+        access_token = self.plaid_client.add_financial_item(public_token)
+        plaid_id = self.store.insert_plaid_account(access_token)
+        for account in self.plaid_client.retrieve_accounts(access_token):
+            PLAID_ACCOUNT_TYPE_MAP = {
+                "credit": TransactionType.CREDIT,
+                "depository": TransactionType.DEPOSITORY,
+                "investment": TransactionType.INVESTMENT,
+                "loan": TransactionType.LOAN,
+            }
+            self.store.insert_account(
+                PartialAccount(
+                    account.account_id,
+                    TransactionSource.PLAID,
+                    PLAID_ACCOUNT_TYPE_MAP.get(account.type.value),
+                    account.name,
+                    account.balances.get("current", 0),
+                    plaid_id,
+                )
+            )

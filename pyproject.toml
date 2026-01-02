@@ -44,9 +44,5 @@ addopts = [
 [tool.djlint]
 ignore = "J004"
 profile = "jinja"
-indent = 2
-max_line_length = 88
-format_css = true
-format_js = true
-preserve_blank_lines = true
-max-blank-lines = 5
+# format_css = true
+# format_js = true

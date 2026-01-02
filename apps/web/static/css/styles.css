@@ -360,11 +360,58 @@ textarea[readonly] {
 
 
 .budget-item {
-  display: grid;
-  grid-template-columns: 0.7fr 1fr;
   align-items: center;
   cursor: pointer;
   gap: 8px;
+}
+
+.budget-item--grid {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr;
+}
+
+/* ─────────────────────────────
+   Budget empty state
+   ───────────────────────────── */
+
+.budget-item--empty {
+  background: transparent;
+  border: 2px dashed color-mix(
+    in srgb,
+    var(--color-text-primary) 18%,
+    transparent
+  );
+  border-radius: var(--radius);
+  padding: 32px 16px;
+  cursor: pointer;
+}
+
+.budget-item__empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.budget-item__empty-content svg {
+  width: 28px;
+  height: 28px;
+  opacity: 0.6;
+}
+
+.budget-item__empty-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.budget-item__empty-subtitle {
+  font-size: 13px;
+  opacity: 0.8;
+  max-width: 240px;
 }
 
 .budget-back-button {
@@ -694,6 +741,7 @@ textarea[readonly] {
   display: flex;
   flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 
 .explorer-search__bar {
@@ -723,6 +771,15 @@ textarea[readonly] {
   outline: none;
   font-size: 14px;
   color: var(--color-text-primary);
+}
+
+.explorer-search__bar input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.explorer-search__bar input:disabled::placeholder {
+  color: var(--color-text-muted);
 }
 
 .explorer-search__bar input::placeholder {
@@ -780,6 +837,37 @@ textarea[readonly] {
 
 .explorer-search__table table tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* ─────────────────────────────
+   Table empty state
+   ───────────────────────────── */
+
+
+.table__empty td {
+  padding: 48px 16px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.table__empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.table__empty-content strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.table__empty-content span {
+  font-size: 13px;
+  opacity: 0.8;
 }
 
 /* Header cell */
@@ -905,6 +993,31 @@ textarea[readonly] {
   background: var(--color-bg-surface);
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+/* ─────────────────────────────
+   List empty states (simple)
+   ───────────────────────────── */
+
+.list__empty {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px 12px;
+  background: transparent;
+  text-align: center;
+  grid-template-columns: none;
+}
+
+.list__empty .list__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.list__empty .list__meta {
+  font-size: 12px;
 }
 
 .list__title {

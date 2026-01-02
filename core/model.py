@@ -5,10 +5,6 @@ from pydantic import BaseModel
 from core.datastore.model import TransactionDirection
 
 
-class PlaidExchangeRequest(BaseModel):
-    public_token: str
-
-
 class AppleTransaction(BaseModel):
     id: str
     account_id: str
