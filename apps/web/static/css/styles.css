@@ -71,8 +71,6 @@ html,
 body {
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  /* ❌ no page scrolling */
 }
 
 body {
@@ -81,9 +79,7 @@ body {
   color: var(--color-text-primary);
   margin: 0;
   padding: 24px;
-  /* space to reveal rounded corners */
   padding-bottom: 0px;
-  /* space to reveal rounded corners */
 }
 
 input,
@@ -133,13 +129,11 @@ textarea[readonly] {
   background: var(--color-bg-card);
   box-shadow: var(--shadow-elevated);
   width: 100%;
-  height: calc(100% - 48px);
-  /* account for body padding */
+  height: calc(100% - 1px);
   display: flex;
   flex-direction: column;
   padding: 28px;
   border-radius: 24px;
-  /* visible rounded edges */
 }
 
 .dashboard__header {
@@ -178,17 +172,16 @@ textarea[readonly] {
 }
 
 .dashboard__body {
-  flex: 1;
   display: grid;
   grid-template-columns: 1fr 1.3fr;
   gap: var(--gap);
-  min-height: 0;
+  min-height: 0px;
 }
 
 .budget-list {
   background: var(--color-bg-surface);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 32px;
   box-shadow: var(--shadow-elevated);
   border: 3px solid var(--color-primary);
   display: flex;
@@ -235,6 +228,7 @@ textarea[readonly] {
   overflow: hidden;
 }
 
+.explorer-actions,
 .budget-actions {
   display: flex;
   gap: 24px;
@@ -332,6 +326,7 @@ textarea[readonly] {
 .budget-list header {
   display: flex;
   flex-direction: row;
+  position: relative;
   justify-content: space-between;
   margin-bottom: 8px;
 }
@@ -658,7 +653,7 @@ textarea[readonly] {
 .explorer {
   background: var(--color-bg-surface);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 32px;
   box-shadow: var(--shadow-elevated);
   display: flex;
   flex-direction: column;
@@ -669,6 +664,29 @@ textarea[readonly] {
   overflow: hidden;
 }
 
+.budget-list.is-collapsed,
+#explorer-history.is-collapsed {
+  gap: 0;
+  flex: none;
+}
+
+/* Collapse main content */
+#budget-list-items.is-collapsed,
+#explorer-history-section.is-collapsed {
+  height: 0;
+  display: none;
+}
+
+/* Icon state: minus → plus */
+#budget-lines-container header .icon-box.is-collapsed svg path:last-child,
+#explorer-history header .icon-box.is-collapsed svg path:last-child {
+  display: block; /* show + */
+}
+
+#budget-lines-container header .icon-box:not(.is-collapsed) svg path:last-child,
+#explorer-history header .icon-box:not(.is-collapsed) svg path:last-child {
+  display: none; /* hide − */
+}
 
 .explorer-search {
   gap: 8px;
@@ -802,11 +820,12 @@ textarea[readonly] {
 }
 
 
-.explorer__header {
+.explorer header {
   display: flex;
-  align-items: center;
+  position: relative;
+  flex-direction: row;
   justify-content: space-between;
-  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .budget__kicker,
@@ -914,14 +933,38 @@ textarea[readonly] {
 .icon {
   width: 12px;
   height: 12px;
-  margin-right: 4px;
   vertical-align: middle;
   flex-shrink: 0;
+}
+
+.icon--spacing {
+  margin-right: 4px;
 }
 
 .icon--medium {
   width: 20px;
   height: 20px;
+}
+
+.icon-box--topleft {
+  position: absolute;
+  left: -20px;
+  top: -20px;
+}
+
+.icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background-color: #f1f1f1;
+  /* light gray */
+}
+
+.icon-box:hover {
+  background-color: #e6e6e6;
 }
 
 .pill svg {
@@ -1068,8 +1111,24 @@ textarea[readonly] {
     padding: 12px;
   }
 
+  .explorer-section {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .explorer-recent {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .explorer-search {
+    flex: 1;
+    min-width: auto;
+  }
+
   .dashboard {
-    height: 100%;
+    height: calc(100% - -450px);
   }
 
   .dashboard__header h1 {
@@ -1081,10 +1140,10 @@ textarea[readonly] {
   }
 
   .budget-list {
-    padding: 14px;
     gap: 12px;
   }
 
+  .explorer-actions,
   .budget-actions {
     gap: 12px;
     align-items: flex-end;

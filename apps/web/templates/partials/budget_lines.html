@@ -1,36 +1,57 @@
 <header>
+  <div class="icon-box icon-box--topleft"
+       role="button"
+       aria-expanded="true"
+       hx-on="click: toggleClass('#budget-list-items','is-collapsed'); toggleClass('#budget-lines-container','is-collapsed'); toggleClass(this,'is-collapsed'); ">
+    <svg class="icon icon--small"
+         xmlns="http://www.w3.org/2000/svg"
+         width="16"
+         height="16"
+         viewBox="0 0 24 24"
+         fill="none"
+         stroke="currentColor"
+         stroke-width="2"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         aria-hidden="true">
+      <!-- Horizontal line (minus) -->
+      <path d="M5 12h14" />
+      <!-- Vertical line (plus). Remove or hide this path when in minimized state -->
+      <path d="M12 5v14" />
+    </svg>
+  </div>
   <div>
     <p class="budget__kicker">Budget</p>
-    <h3>Budget Lines</h3>
+    <h3>Items</h3>
   </div>
   {% if not readonly %}
-  <div class="budget-actions">
-    <button class="budget-list-create is-active pill pill--xsmall pill--primary"
-            hx-on="click: const form = document.querySelector('#budget-summary-create');  form.classList.toggle('is-active'); this.classList.toggle('is-active'); ">
-      <span class="pill__content">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-        New Item
-      </span>
-    </button>
-    <button class="budget-list-create is-active pill pill--xsmall pill--secondary" 
-        hx-post="/budgets/copy?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
-        hx-target="#budget-lines-container"
-        hx-swap="innerHTML">
-      <span class="pill__content">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-        Use Last Month’s Budget
-      </span>
-    </button>
-  </div>
+    <div class="budget-actions">
+      <button class="budget-list-create is-active pill pill--xsmall pill--primary"
+              hx-on="click: const form = document.querySelector('#budget-summary-create');  form.classList.toggle('is-active'); this.classList.toggle('is-active'); ">
+        <span class="pill__content">
+          <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          New Item
+        </span>
+      </button>
+      <button class="budget-list-create is-active pill pill--xsmall pill--secondary"
+              hx-post="/budgets/copy?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
+              hx-target="#budget-lines-container"
+              hx-swap="innerHTML">
+        <span class="pill__content">
+          <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          Use Last Month’s Budget
+        </span>
+      </button>
+    </div>
   {% endif %}
 </header>
 <form id="budget-summary-create"
       class="budget-summary"
-      hx-post="/budgets?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+      hx-post="/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
       hx-target="#budget-lines-container"
       hx-swap="innerHTML">
   <!-- Name -->
@@ -41,7 +62,7 @@
   <!-- Allocated -->
   <div class="budget-summary__field">
     <label>Allocated</label>
-    <input name="allocated" inputmode="decimal"  placeholder="0.00" />
+    <input name="allocated" inputmode="decimal" placeholder="0.00" />
   </div>
   <!-- Spent -->
   <div class="budget-summary__field">
@@ -51,14 +72,9 @@
   <button type="submit"
           class="budget-list-save pill pill--xsmall pill--secondary">Save</button>
 </form>
-<ul class="budget-list__items budget-list__items--scroll"
-    hx-on="
-      scroll:
-        const form = document.querySelector('#budget-summary-create');
-        const btn  = document.querySelector('.budget-list-create');
-        form.classList.remove('is-active');
-        btn.classList.add('is-active');
-    ">
+<ul id="budget-list-items"
+    class="budget-list__items budget-list__items--scroll"
+    hx-on=" scroll: const form = document.querySelector('#budget-summary-create'); const btn  = document.querySelector('.budget-list-create'); form.classList.remove('is-active'); btn.classList.add('is-active'); ">
   {% for item in budgets %}
     {% if item.amount_allocated and item.amount_allocated > 0 %}
       {% set pct = (item.amount_spent / item.amount_allocated) * 100 %}
@@ -72,12 +88,13 @@
       {% set zone = "progress__bar--warning" %}
     {% endif %}
     <li class="budget-item budget-item--card"
-        hx-get="/budgets/{{ item.id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+        hx-get="/budgets/{{ item.id }}?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
         hx-target="#budget-lines-container"
         hx-swap="innerHTML">
       <div class="budget-item__label">{{ item.name }}</div>
       <div class="budget-item__values">
-        <span class="budget-item__amount">${{ '%.0f' % (item.amount_spent / 100) }} / ${{ '%.0f' % (item.amount_allocated / 100) }}</span>
+        <span class="budget-item__amount">${{ '%.0f' % (item.amount_spent / 100) }} / ${{ '%.0f' % (item.amount_allocated
+        / 100) }}</span>
         <div class="progress"
              aria-valuemin="0"
              aria-valuemax="100"
