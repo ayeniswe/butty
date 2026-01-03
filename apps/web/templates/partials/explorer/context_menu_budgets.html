@@ -2,34 +2,16 @@
     class="context-menu__list context-menu__list--scroll"
     hx-target="#txn-context-budget-list"
     hx-swap="outerHTML"
-    hx-get="/transactions/context-menu/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
-    hx-trigger="refresh-context-budgets from:body">
+    hx-get="/transactions/context-menu/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}">
     {% if budgets and budgets|length > 0 %}
         {% for budget in budgets %}
             <li class="context-menu__item"
                 role="button"
-                hx-post="/transactions/budget/assign"
+                hx-post="/transactions/budget"
                 hx-target="#explorer-history"
                 hx-swap="innerHTML"
                 hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, budget_id: {{ budget.id }}, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
-                hx-on="click:
-                    const menu = document.getElementById('txn-context-menu');
-                    const occurredAt = new Date(menu.dataset.txnOccurredAt);
-                    const month = Number(menu.dataset.currentMonth);
-                    const year = Number(menu.dataset.currentYear);
-                    if (!menu.dataset.txnOccurredAt || occurredAt.getMonth() + 1 !== month || occurredAt.getFullYear() !== year) {
-                        alert('This transaction cannot be assigned to the current month.');
-                        event.preventDefault();
-                        return;
-                    }
-                ; htmx:afterRequest:
-                    const menu = document.getElementById('txn-context-menu');
-                    menu.classList.remove('is-visible');
-                    menu.style.display = 'none';
-                    menu.querySelector('[data-view=main]').style.display = 'block';
-                    menu.querySelector('[data-view=budgets]').style.display = 'none';
-                ; htmx:responseError:
-                    try { alert(JSON.parse(event.detail.xhr.responseText).detail); } catch (e) { alert('Unable to assign transaction to budget.'); }">
+                hx-on="click: const menu = document.getElementById('txn-context-menu'); const occurredAt = new Date(menu.dataset.txnOccurredAt); const month = Number(menu.dataset.currentMonth); const year = Number(menu.dataset.currentYear); if (!menu.dataset.txnOccurredAt || occurredAt.getMonth() + 1 !== month || occurredAt.getFullYear() !== year) { alert('This transaction cannot be assigned to the current month.'); event.preventDefault(); return; } ; htmx:afterRequest: const menu = document.getElementById('txn-context-menu'); menu.classList.remove('is-visible'); menu.style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; menu.querySelector('[data-view=budgets]').style.display = 'none'; ; htmx:responseError: try { alert(JSON.parse(event.detail.xhr.responseText).detail); } catch (e) { alert('Unable to assign transaction to budget.'); }">
                 {{ budget.name }}
             </li>
         {% endfor %}

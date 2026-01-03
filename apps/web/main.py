@@ -68,9 +68,7 @@ def _activity_context(
         "recent_transactions": recent_transactions,
         "transactions": transactions,
         "accounts": accounts,
-        "budgets": service.get_all_budgets(
-            mth_ctx["current_month"], mth_ctx["year"]
-        ),
+        "budgets": service.get_all_budgets(mth_ctx["current_month"], mth_ctx["year"]),
         **mth_ctx,
     }
 
@@ -535,7 +533,7 @@ def transaction_note(
     return _explorer_response(request, service, month, year)
 
 
-@transactions_router.post("/budget/assign", response_class=HTMLResponse)
+@transactions_router.post("/budget", response_class=HTMLResponse)
 def transaction_assign_budget(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
@@ -547,12 +545,12 @@ def transaction_assign_budget(
     try:
         service.assign_transaction_to_budget(budget_id, transaction_id, month, year)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return _explorer_response(request, service, month, year)
 
 
-@transactions_router.post("/budget/remove", response_class=HTMLResponse)
+@transactions_router.delete("/budget", response_class=HTMLResponse)
 def transaction_remove_budget(
     request: Request,
     service: Annotated[Service, Depends(get_service)],

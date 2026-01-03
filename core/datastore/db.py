@@ -311,9 +311,9 @@ class Sqlite3(DataStore):
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
         with self.engine.begin() as conn:
             conn.execute(
-                insert(self.budgets_transactions).values(
-                    transaction_id=transaction_id, budget_id=budget_id
-                )
+                insert(self.budgets_transactions)
+                .values(transaction_id=transaction_id, budget_id=budget_id)
+                .prefix_with("OR IGNORE")
             )
 
     def delete_budget_transaction(self, budget_id: int, transaction_id: int):
