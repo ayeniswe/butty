@@ -251,15 +251,15 @@ class Sqlite3(DataStore):
             return conn.execute(select(self.plaid_accounts)).fetchall()
 
     # MARK: - Accounts
-    def account_exists_by_fingerprint(self, fingerprint: str) -> bool:
+    def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:
         with self.engine.begin() as conn:
-            result = conn.execute(
+            row = conn.execute(
                 select(self.accounts.c.id)
                 .where(self.accounts.c.fingerprint == fingerprint)
                 .limit(1)
             ).first()
 
-            return result is not None
+            return row.id if row else None
 
     def insert_account(self, obj: PartialAccount) -> int:
         values = {

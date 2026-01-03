@@ -17,7 +17,6 @@ from core.utils import (
     build_fingerprint,
     cents_to_dollars,
     derive_direction,
-    dollars_to_cents,
 )
 
 
@@ -225,20 +224,24 @@ class Service:
         if transactions:
             # Must use first trans to get account since no
             # easy way to get accounts
-            GENERIC_NAME = "Apple Card"
+
             transaction = transactions[0]
-            account_id = self.store.insert_account(
-                PartialAccount(
-                    transaction.account_id,
-                    TransactionSource.APPLE,
-                    TransactionType.CREDIT,
-                    GENERIC_NAME,
-                    0,  # TODO add the correct balance
-                    Service.__build_account_fingerprint(
-                        GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
-                    ),  # TODO fix for correctneess data
-                )
+            GENERIC_NAME = "Apple Card"
+            fingerprint = Service.__build_account_fingerprint(
+                GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
             )
+            account_id = self.store.account_exists_by_fingerprint(fingerprint)
+
+            if not account_id:
+                account_id = self.store.insert_account(
+                    PartialAccount(
+                        transaction.account_id,
+                        TransactionSource.APPLE,
+                        TransactionType.CREDIT,
+                        GENERIC_NAME,
+                        0,  # TODO add the correct balance
+                    )
+                )
             for transaction in transactions:
                 # NOTE
                 # All transactions should be stored as cents
