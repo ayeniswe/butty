@@ -917,3 +917,39 @@ def test_account_exists_by_fingerprint(db: Sqlite3):
 
     # should not exist
     assert db.account_exists_by_fingerprint("fp-does-not-exist") is None
+
+
+def test_select_budget_id_for_transaction(db: Sqlite3):
+    # create budget
+    db.insert_budget("Utilities", 200)
+
+    # create account
+    db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="ext-sel-bt",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-sel-bt",
+        )
+    )
+
+    # create transaction
+    tx_id = db.insert_transaction(
+        PartialTransaction(
+            name="Electric Bill",
+            amount=75,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-sel-bt",
+        )
+    )
+
+    # link transaction to budget
+    db.insert_budget_transaction(1, tx_id)
+
+    # verify lookup
+    budget_id = db.select_budget_id_for_transaction(tx_id)
+
+    assert budget_id == 1
