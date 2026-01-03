@@ -57,6 +57,7 @@ class PartialTransaction:
     amount: float
     direction: TransactionDirection
     account_id: int
+    fingerprint: str
     note: str | None = None
     external_id: str | None = None
     occurred_at: datetime | None = None
@@ -112,4 +113,5 @@ class PartialAccount:
     account_type: str
     name: str
     balance: int
+    fingerprint: str
     plaid_id: int | None = None

@@ -101,6 +101,9 @@ class DataStore(ABC):
 
     # -------- Accounts --------
     @abstractmethod
+    def account_exists_by_fingerprint(self, fingerprint: str) -> bool: ...
+
+    @abstractmethod
     def insert_account(self, obj: PartialAccount) -> int: ...
 
     @abstractmethod

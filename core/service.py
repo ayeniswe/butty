@@ -13,7 +13,12 @@ from core.datastore.model import (
     TransactionView,
 )
 from core.model import AppleTransaction
-from core.utils import cents_to_dollars, derive_direction, dollars_to_cents
+from core.utils import (
+    build_fingerprint,
+    cents_to_dollars,
+    derive_direction,
+    dollars_to_cents,
+)
 
 
 # MARK: Service Layer
@@ -39,6 +44,16 @@ class Service:
             end = start.replace(month=start.month + 1)
 
         return {"start": start, "end": end}
+
+    @staticmethod
+    def __build_transaction_fingerprint(
+        name: str, amount: float, direction: TransactionDirection, date: datetime
+    ):
+        return build_fingerprint(name, str(amount), direction, date.isoformat())
+
+    @staticmethod
+    def __build_account_fingerprint(inst_id: str, name: str, subtype: float, mask: str):
+        return build_fingerprint(inst_id, name, subtype, mask)
 
     # MARK: - Budget Management
 
@@ -144,13 +159,16 @@ class Service:
 
         for account in self.store.retrieve_plaid_accounts():
             p = self.store.select_plaid_account(account.id)
-            account_type = self.store.select_account_by_id(account.id).account_type
+            acc = self.store.select_account_by_id(account.id)
+            account_type = acc.account_type
+
             for transaction in self.plaid_client.retrieve_transactions(p.token):
                 # Depends on enrichment and not guranteed but ideal
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
 
                 amount = transaction.amount
+                date = transaction.date
                 direction = derive_direction(
                     amount, account_type == TransactionType.CREDIT
                 )
@@ -162,8 +180,11 @@ class Service:
                         amount,
                         direction,
                         account.id,
+                        Service.__build_transaction_fingerprint(
+                            name, amount, direction, date
+                        ),
                         external_id=transaction.transaction_id,
-                        occurred_at=transaction.date,
+                        occurred_at=date,
                     )
                 )
 
@@ -177,26 +198,38 @@ class Service:
         if transactions:
             # Must use first trans to get account since no
             # easy way to get accounts
+            GENERIC_NAME = "Apple Card"
             transaction = transactions[0]
             account_id = self.store.insert_account(
                 PartialAccount(
                     transaction.account_id,
                     TransactionSource.APPLE,
                     TransactionType.CREDIT,
-                    "Apple Card",
+                    GENERIC_NAME,
+                    0,  # TODO add the correct balance
+                    Service.__build_account_fingerprint(
+                        GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
+                    ),  # TODO fix for correctneess data
                 )
             )
+            name = transaction.name
+            amount = transaction.amount
+            direction = transaction.direction
+            date = transaction.date
             for transaction in transactions:
                 # NOTE
                 # All transactions should be stored as cents
                 self.store.insert_transaction(
                     PartialTransaction(
-                        transaction.name,
-                        dollars_to_cents(transaction.amount),
-                        transaction.direction,
+                        name,
+                        dollars_to_cents(amount),
+                        direction,
                         account_id,
+                        Service.__build_transaction_fingerprint(
+                            name, amount, direction, date
+                        ),
                         external_id=transaction.id,
-                        occurred_at=transaction.date,
+                        occurred_at=date,
                     )
                 )
 
@@ -239,21 +272,42 @@ class Service:
         public_token: str,
     ):
         access_token = self.plaid_client.add_financial_item(public_token)
-        plaid_id = self.store.insert_plaid_account(access_token)
-        for account in self.plaid_client.retrieve_accounts(access_token):
-            PLAID_ACCOUNT_TYPE_MAP = {
-                "credit": TransactionType.CREDIT,
-                "depository": TransactionType.DEPOSITORY,
-                "investment": TransactionType.INVESTMENT,
-                "loan": TransactionType.LOAN,
-            }
-            self.store.insert_account(
-                PartialAccount(
-                    account.account_id,
-                    TransactionSource.PLAID,
-                    PLAID_ACCOUNT_TYPE_MAP.get(account.type.value),
-                    account.name,
-                    account.balances.get("current", 0),
-                    plaid_id,
-                )
+        accounts = self.plaid_client.retrieve_accounts(access_token)
+
+        PLAID_ACCOUNT_TYPE_MAP = {
+            "credit": TransactionType.CREDIT,
+            "depository": TransactionType.DEPOSITORY,
+            "investment": TransactionType.INVESTMENT,
+            "loan": TransactionType.LOAN,
+        }
+
+        new_accounts_data: list[dict] = []
+
+        for account in accounts:
+            fingerprint = account.fingerprint
+
+            # Skip accounts that already exist (stable identity)
+            if self.store.account_exists_by_fingerprint(fingerprint):
+                continue
+
+            new_accounts_data.append(
+                {
+                    "external_id": account.account_id,
+                    "source": TransactionSource.PLAID,
+                    "account_type": PLAID_ACCOUNT_TYPE_MAP.get(account.type),
+                    "name": account.name,
+                    "balance": account.balance,
+                    "fingerprint": fingerprint,
+                }
             )
+
+        # 🚫 No new accounts discovered → do NOT persist access token
+        if not new_accounts_data:
+            return
+
+        # ✅ At least one new account → now persist access token
+        plaid_id = self.store.insert_plaid_account(access_token)
+
+        for data in new_accounts_data:
+            data["plaid_id"] = plaid_id
+            self.store.insert_account(PartialAccount(**data))

@@ -108,6 +108,7 @@ class Sqlite3(DataStore):
                 "direction": obj.direction,
                 "external_id": obj.external_id,
                 "account_id": obj.account_id,
+                "fingerprint": obj.fingerprint,
             }
             if obj.occurred_at:
                 values["occurred_at"] = obj.occurred_at.isoformat()
@@ -249,13 +250,24 @@ class Sqlite3(DataStore):
             return conn.execute(select(self.plaid_accounts)).fetchall()
 
     # MARK: - Accounts
+    def account_exists_by_fingerprint(self, fingerprint: str) -> bool:
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                select(self.accounts.c.id)
+                .where(self.accounts.c.fingerprint == fingerprint)
+                .limit(1)
+            ).first()
+
+            return result is not None
+
     def insert_account(self, obj: PartialAccount) -> int:
         values = {
             "name": obj.name,
             "external_id": obj.external_id,
             "source": obj.source,
             "account_type": obj.account_type,
-            "balance": obj.balance,
+            "fingerprint": obj.fingerprint,
+            "balance": dollars_to_cents(obj.balance),
         }
         if obj.plaid_id:
             values["plaid_id"] = obj.plaid_id

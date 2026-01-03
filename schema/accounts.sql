@@ -8,6 +8,7 @@ CREATE TABLE
         account_type TEXT NOT NULL CHECK (account_type IN ('CREDIT', 'LOAN','INVESTMENT', 'DEPOSITORY')),
         balance INTEGER NOT NULL, -- stored in cents (e.g. $12.34 = 1234)
         last_updated_at TEXT NOT NULL DEFAULT (datetime ('now')),
+        fingerprint TEXT NOT NULL UNIQUE,
         FOREIGN KEY (plaid_id) REFERENCES plaid_accounts(id) ON DELETE CASCADE
     );
     

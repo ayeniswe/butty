@@ -1,3 +1,5 @@
+import hashlib
+import re
 from calendar import month_name
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -45,3 +47,21 @@ def derive_month_context(month: int | None = None, year: int | None = None):
         "next_month": current_month + 1,
         "prev_month": current_month - 1,
     }
+
+
+def normalize(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def build_fingerprint(*values: str | None) -> str:
+    """
+    Deterministic fingerprint builder.
+
+    - Accepts any number of values
+    - Order matters (caller-controlled)
+    - Values are normalized before hashing
+    """
+    canonical = "|".join(normalize(v) for v in values)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
