@@ -123,13 +123,17 @@ class Service:
         self.store.insert_budget_transaction(budget_id, transaction_id)
 
     def create_transaction(self, name: str, amount: float, account_id: str, date: str):
+        amount = abs(amount)
+        dir = TransactionDirection.OUT
+        occurred_at = datetime.fromisoformat(date)
         return self.store.insert_transaction(
             PartialTransaction(
                 name,
-                abs(amount),
-                TransactionDirection.OUT,
+                amount,
+                dir,
                 account_id,
-                occurred_at=date,
+                Service.__build_transaction_fingerprint(name, amount, dir, occurred_at),
+                occurred_at=occurred_at,
             )
         )
 

@@ -42,7 +42,7 @@ addopts = [
 ]
 
 [tool.djlint]
-ignore = "J004"
+ignore = "J004, H021"
 profile = "jinja"
 # format_css = true
 # format_js = true

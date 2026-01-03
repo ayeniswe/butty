@@ -73,7 +73,7 @@
             <ul class="list list--transactions">
                 {% if recent_transactions and recent_transactions|length > 0 %}
                     {% for transaction in recent_transactions %}
-                        <li>
+                        <li hx-on="contextmenu: event.preventDefault(); event.stopPropagation(); const menu = document.getElementById('txn-context-menu'); menu.style.top = event.clientY + 'px'; menu.style.left = event.clientX + 'px'; menu.dataset.txnId = '{{ transaction.id }}'; menu.style.display = 'block'; menu.classList.add('is-visible');">
                             <div>
                                 <p class="list__title">{{ transaction.name }}</p>
                                 <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at }}</p>
@@ -117,9 +117,9 @@
     <aside class="explorer-search">
         <!-- Explorer Search -->
         <div class="explorer-search__bar">
-            <input type="search" name="query" placeholder="Search transactions, accounts, budgets…" hx-get="/explorer/search"
-                hx-trigger="input changed delay:200ms" hx-target="#explorer-table-rows-container" hx-swap="innerHTML" {% if not
-                transactions or transactions|length==0 %}disabled{% endif %} />
+            <input type="search" name="query" placeholder="Search transactions…" hx-get="/explorer/search"
+                hx-trigger="input changed delay:200ms" hx-target="#explorer-table-rows-container" hx-swap="innerHTML" {%
+                if not transactions or transactions|length==0 %}disabled{% endif %} />
                 <svg class="icon icon--medium clickable"
                      xmlns="http://www.w3.org/2000/svg"
                      width="18"
@@ -152,7 +152,8 @@
                     <tbody id="explorer-table-rows-container">
                         {% if transactions and transactions|length > 0 %}
                             {% for transaction in transactions %}
-                                <tr>
+                                <tr class="explorer-row"
+                                    hx-on="contextmenu: event.preventDefault(); event.stopPropagation(); const menu = document.getElementById('txn-context-menu'); menu.style.top = event.clientY + 'px'; menu.style.left = event.clientX + 'px'; menu.dataset.txnId = '{{ transaction.id }}'; menu.style.display = 'block'; menu.classList.add('is-visible');">
                                     <td>{{ transaction.occurred_at }}</td>
                                     <td class="strong">{{ transaction.name }}</td>
                                     <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
@@ -179,4 +180,64 @@
                 </table>
             </div>
         </aside>
+        <!-- Context menu for transaction rows -->
+        <div id="txn-context-menu"
+             class="context-menu"
+             style="position: fixed;
+                    z-index: 9999;
+                    display: none">
+            <!-- MAIN MENU -->
+            <ul class="context-menu__list" data-view="main">
+                <li class="context-menu__item"
+                    role="button"
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=budgets]').style.display = 'block'; ">
+                    Assign budget
+                </li>
+                <li class="context-menu__item"
+                    role="button"
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=note]').style.display = 'block'; ">
+                    Edit note
+                </li>
+            </ul>
+            <!-- BUDGET LIST VIEW -->
+            <div class="context-menu__view" data-view="budgets" style="display:none;">
+                <div class="context-menu__header"
+                     role="button"
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=budgets]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                    ← Assign budget
+                </div>
+                <ul class="context-menu__list context-menu__list--scroll">
+                    {% for budget in budgets %}
+                        <li class="context-menu__item"
+                            role="button"
+                            data-budget-id="{{ budget.id }}">{{ budget.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <!-- NOTE VIEW -->
+            <div class="context-menu__view" data-view="note" style="display:none;">
+                <div class="context-menu__header"
+                     role="button"
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                    ← Edit note
+                </div>
+                <div class="context-menu__note">
+                    <textarea class="context-menu__note-input"
+                              placeholder="Add a note for this transaction…"
+                              rows="4"></textarea>
+                    <div class="context-menu__note-actions">
+                        <button class="pill pill--xsmall pill--secondary"
+                                hx-on=" const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                            Cancel
+                        </button>
+                        <button class="pill pill--xsmall pill--primary"
+                                hx-post="/transactions/note"
+                                hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, note: document.querySelector(".context-menu__note-input").value }'
+                                hx-on=" const menu = document.getElementById('txn-context-menu'); menu.classList.remove('is-visible'); ">
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>

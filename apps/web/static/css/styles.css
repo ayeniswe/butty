@@ -376,11 +376,9 @@ textarea[readonly] {
 
 .budget-item--empty {
   background: transparent;
-  border: 2px dashed color-mix(
-    in srgb,
-    var(--color-text-primary) 18%,
-    transparent
-  );
+  border: 2px dashed color-mix(in srgb,
+      var(--color-text-primary) 18%,
+      transparent);
   border-radius: var(--radius);
   padding: 32px 16px;
   cursor: pointer;
@@ -727,12 +725,14 @@ textarea[readonly] {
 /* Icon state: minus → plus */
 #budget-lines-container header .icon-box.is-collapsed svg path:last-child,
 #explorer-history header .icon-box.is-collapsed svg path:last-child {
-  display: block; /* show + */
+  display: block;
+  /* show + */
 }
 
 #budget-lines-container header .icon-box:not(.is-collapsed) svg path:last-child,
 #explorer-history header .icon-box:not(.is-collapsed) svg path:last-child {
-  display: none; /* hide − */
+  display: none;
+  /* hide − */
 }
 
 .explorer-search {
@@ -1197,6 +1197,153 @@ textarea[readonly] {
   /* increases hitbox */
   cursor: pointer;
   border-radius: 50%;
+}
+
+
+
+/* ─────────────────────────────
+   Context Menu (Explorer)
+   ───────────────────────────── */
+
+/* ─────────────────────────────
+   Context Menu (Explorer)
+   ───────────────────────────── */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  display: none;
+
+  min-width: 220px;
+  max-width: 260px;
+  padding: 6px;
+  border-radius: 12px;
+
+  background: var(--color-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  box-shadow: var(--shadow-elevated);
+
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.context-menu.is-visible {
+  display: block;
+}
+
+.context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.context-menu__item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.context-menu__item:hover {
+  background: var(--color-highlight-soft);
+}
+
+.context-menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.context-menu li.danger {
+  color: var(--color-danger);
+}
+
+.context-menu li.danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+/* ─────────────────────────────
+   Context Menu – Sub View
+   ───────────────────────────── */
+
+.context-menu__view {
+  display: none;
+  flex-direction: column;
+}
+
+/* Header / back button */
+.context-menu__header {
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+}
+
+.context-menu__header:hover {
+  background: var(--color-highlight-soft);
+  border-radius: 6px;
+}
+
+.context-menu__list--scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+/* Subtle scrollbar (matches app style) */
+.context-menu__list--scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.context-menu__list--scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
+  border-radius: 6px;
+}
+
+.context-menu__list--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ─────────────────────────────
+   Context Menu – Note View
+   ───────────────────────────── */
+
+.context-menu__note {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.context-menu__note-input {
+  width: 100%;
+  resize: none;
+  min-height: 90px;
+
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+
+  border-radius: 8px;
+  border: 1px solid var(--color-input-border);
+  padding: 8px 10px;
+}
+
+.context-menu__note-input:focus {
+  border-color: var(--color-input-border-focus);
+  box-shadow: 0 0 0 2px rgba(243, 111, 27, 0.2);
+  outline: none;
+}
+
+.context-menu__note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 960px) {

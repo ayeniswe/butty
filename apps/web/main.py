@@ -54,6 +54,8 @@ def _month_context(month: int | None = None, year: int | None = None) -> dict:
 
 
 def _activity_context(service: Annotated[Service, Depends(get_service)]) -> dict:
+    # TODO  add correct year month carry
+
     mth_ctx = _month_context()
     recent_transactions = service.get_all_recent_transactions(
         mth_ctx["now_month"], mth_ctx["now_year"], True
@@ -64,6 +66,7 @@ def _activity_context(service: Annotated[Service, Depends(get_service)]) -> dict
         "recent_transactions": recent_transactions,
         "transactions": transactions,
         "accounts": accounts,
+        "budgets": service.get_all_budgets(mth_ctx["now_month"], mth_ctx["now_year"]),
         **mth_ctx,
     }
 
