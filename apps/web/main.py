@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated
 
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -53,12 +53,14 @@ def _month_context(month: int | None = None, year: int | None = None) -> dict:
     return derive_month_context(month, year)
 
 
-def _activity_context(service: Annotated[Service, Depends(get_service)]) -> dict:
-    # TODO  add correct year month carry
-
-    mth_ctx = _month_context()
+def _activity_context(
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = None,
+    year: int | None = None,
+) -> dict:
+    mth_ctx = _month_context(month, year)
     recent_transactions = service.get_all_recent_transactions(
-        mth_ctx["now_month"], mth_ctx["now_year"], True
+        mth_ctx["current_month"], mth_ctx["year"], True
     )
     transactions = service.get_all_transactions()
     accounts = service.get_all_accounts()
@@ -66,9 +68,27 @@ def _activity_context(service: Annotated[Service, Depends(get_service)]) -> dict
         "recent_transactions": recent_transactions,
         "transactions": transactions,
         "accounts": accounts,
-        "budgets": service.get_all_budgets(mth_ctx["now_month"], mth_ctx["now_year"]),
+        "budgets": service.get_all_budgets(
+            mth_ctx["current_month"], mth_ctx["year"]
+        ),
         **mth_ctx,
     }
+
+
+def _explorer_response(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = None,
+    year: int | None = None,
+):
+    return templates.TemplateResponse(
+        "partials/explorer/index.html",
+        {
+            "request": request,
+            **_activity_context(service, month, year),
+            **_base_context(service),
+        },
+    )
 
 
 # MARK: Root Routes
@@ -113,15 +133,10 @@ def summary_card(
 def explorer_panel(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "partials/explorer/index.html",
-        {
-            "request": request,
-            **_activity_context(service),
-            **_base_context(service),
-        },
-    )
+    return _explorer_response(request, service, month, year)
 
 
 @root_router.get("/explorer/search", response_class=HTMLResponse)
@@ -487,16 +502,75 @@ def tag_search(
 # MARK: Transactions
 
 
+@transactions_router.get("/context-menu/budgets", response_class=HTMLResponse)
+def context_menu_budgets(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    mth_ctx = _month_context(month, year)
+    return templates.TemplateResponse(
+        "partials/explorer/context_menu_budgets.html",
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                mth_ctx["current_month"], mth_ctx["year"]
+            ),
+            **mth_ctx,
+        },
+    )
+
+
+@transactions_router.post("/note", response_class=HTMLResponse)
+def transaction_note(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    note: str = Form(""),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    service.update_transaction_note(transaction_id, note)
+    return _explorer_response(request, service, month, year)
+
+
+@transactions_router.post("/budget/assign", response_class=HTMLResponse)
+def transaction_assign_budget(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    budget_id: int = Form(...),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    try:
+        service.assign_transaction_to_budget(budget_id, transaction_id, month, year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return _explorer_response(request, service, month, year)
+
+
+@transactions_router.post("/budget/remove", response_class=HTMLResponse)
+def transaction_remove_budget(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    service.unassign_transaction_to_budget(None, transaction_id)
+    return _explorer_response(request, service, month, year)
+
+
 @transactions_router.get("/sync", response_class=HTMLResponse)
 def sync_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
     service.sync_all_transactions()
-    return templates.TemplateResponse(
-        "partials/explorer/index.html",
-        {"request": request, **_activity_context(service)},
-    )
+    return _explorer_response(request, service)
 
 
 @transactions_router.post("/sync/apple", response_class=HTMLResponse)
@@ -527,10 +601,7 @@ def create_account_by_plaid(
 ) -> HTMLResponse:
     service.create_accounts_by_plaid(public_token)
     service.sync_all_transactions()
-    return templates.TemplateResponse(
-        "partials/explorer/index.html",
-        {"request": request, **_activity_context(service)},
-    )
+    return _explorer_response(request, service)
 
 
 # MARK: Router Registration

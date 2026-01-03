@@ -157,6 +157,7 @@ class Sqlite3(DataStore):
                     self.budgets,
                     self.budgets_transactions.c.budget_id == self.budgets.c.id,
                 )
+                .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
 
     def filter_transactions(
@@ -341,3 +342,13 @@ class Sqlite3(DataStore):
                 .where(self.budgets_transactions.c.budget_id == budget_id)
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+    def select_budget_id_for_transaction(self, transaction_id: int) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.budgets_transactions.c.budget_id)
+                .where(self.budgets_transactions.c.transaction_id == transaction_id)
+                .limit(1)
+            ).first()
+
+            return row.budget_id if row else None
