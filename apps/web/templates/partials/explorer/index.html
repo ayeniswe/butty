@@ -1,0 +1,264 @@
+<header>
+    <div class="icon-box icon-box--topleft"
+         role="button"
+         aria-expanded="true"
+         hx-on="click: htmx.toggleClass('#explorer-history','is-collapsed'); htmx.toggleClass('#explorer-history-section','is-collapsed'); htmx.toggleClass(this,'is-collapsed'); ">
+        <svg class="icon icon--small"
+             xmlns="http://www.w3.org/2000/svg"
+             width="16"
+             height="16"
+             viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="2"
+             stroke-linecap="round"
+             stroke-linejoin="round"
+             aria-hidden="true">
+            <!-- Horizontal line (minus) -->
+            <path d="M5 12h14" />
+            <!-- Vertical line (plus). Remove or hide this path when in minimized state -->
+            <path d="M12 5v14" />
+        </svg>
+    </div>
+    <div>
+        <p class="explorer__kicker">Explorer</p>
+        <h3>Activity</h3>
+    </div>
+    <div class="explorer-actions">
+        <button class="pill pill--xsmall pill--accent"
+                hx-get="/transactions/sync"
+                hx-target="#explorer-history"
+                hx-swap="innerHTML">
+            <span class="pill__content">
+                <svg class="icon icon--spacing icon--small"
+                     xmlns="http://www.w3.org/2000/svg"
+                     width="16"
+                     height="16"
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     stroke-linecap="round"
+                     stroke-linejoin="round"
+                     aria-hidden="true">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                    <path d="M21 21v-5h-5" />
+                </svg>
+                Sync
+            </span>
+        </button>
+        <button class="pill pill--xsmall pill--secondary"
+                hx-get="/link"
+                hx-target="this"
+                hx-swap="outerHTML">
+            <span class="pill__content">
+                <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                Add Account
+            </span>
+        </button>
+    </div>
+</header>
+<section id="explorer-history-section" class="explorer-section">
+    <!-- Explorer Recent -->
+    <aside class="explorer-recent">
+        <div class="card card--stacked">
+            <header class="card__header">
+                <span class="badge">Recent</span>
+                <strong>Transactions</strong>
+            </header>
+            <ul class="list list--transactions">
+                {% if recent_transactions and recent_transactions|length > 0 %}
+                    {% for transaction in recent_transactions %}
+                        <li data-txn-id="{{ transaction.id }}"
+                            data-txn-occurred-at="{{ transaction.occurred_at }}"
+                            data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
+                            data-txn-note="{{ transaction.note | default("") }}"
+                            hx-on="contextmenu: openTxnContextMenu(event, this)">
+                            <div>
+                                <p class="list__title">{{ transaction.name }}</p>
+                                <p class="list__meta">
+                                    {{ transaction.account_name }}
+                                    · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}
+                                    {% if transaction.budget_name %}· <span class="text--muted">{{ transaction.budget_name }}</span>{% endif %}
+                                </p>
+                            </div>
+                            <span class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
+                                {{ '$%.2f' % (transaction.amount / 100) }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list__empty">
+                        <p class="list__title">No transactions yet</p>
+                        <p class="list__meta">Activity will appear here once you start spending.</p>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+        <div class="card card--stacked">
+            <header class="card__header">
+                <span class="badge">Accounts</span>
+                <strong>Balances</strong>
+            </header>
+            <ul class="list list--accounts">
+                {% if accounts and accounts|length > 0 %}
+                    {% for account in accounts %}
+                        <li>
+                            <p class="list__title">{{ account.name }}</p>
+                            <p class="list__meta">Updated just now</p>
+                            <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
+                        </li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list__empty">
+                        <p class="list__title">No accounts linked</p>
+                        <p class="list__meta">Connect a bank to see balances here.</p>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </aside>
+    <aside class="explorer-search">
+        <!-- Explorer Search -->
+        <div class="explorer-search__bar">
+            <input type="search" name="query" placeholder="Search transactions…" hx-get="/explorer/search"
+                hx-trigger="input changed delay:200ms" hx-target="#explorer-table-rows-container" hx-swap="innerHTML" {%
+                if not transactions or transactions|length==0 %}disabled{% endif %} />
+                <svg class="icon icon--medium clickable"
+                     xmlns="http://www.w3.org/2000/svg"
+                     width="18"
+                     height="18"
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     stroke-linecap="round"
+                     stroke-linejoin="round"
+                     aria-hidden="true">
+                    <path d="M3 5h18" />
+                    <path d="M6 12h12" />
+                    <path d="M10 19h4" />
+                </svg>
+            </div>
+            <!-- Explorer Table -->
+            <div class="explorer-search__table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th class="align-right">Amount</th>
+                            <th class="align-center">Type</th>
+                            <th>Account</th>
+                            <th>Budget</th>
+                        </tr>
+                    </thead>
+                    <tbody id="explorer-table-rows-container">
+                        {% if transactions and transactions|length > 0 %}
+                            {% for transaction in transactions %}
+                                <tr class="explorer-row"
+                                    data-txn-id="{{ transaction.id }}"
+                                    data-txn-occurred-at="{{ transaction.occurred_at }}"
+                                    data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
+                                    data-txn-note="{{ transaction.note | default("") }}"
+                                    hx-on="contextmenu: openTxnContextMenu(event, this)">
+                                    <td>{{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+                                    <td class="strong">{{ transaction.name }}</td>
+                                    <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
+                                    <td class="align-center">
+                                        <span class="{{ 'text--danger' if transaction.direction == 'OUT' else 'text--success' }}">
+                                            {{ transaction.direction }}
+                                        </span>
+                                    </td>
+                                    <td>{{ transaction.account_name }}</td>
+                                    <td>{{ transaction.budget_name }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr class="table__empty">
+                                <td colspan="6">
+                                    <div class="table__empty-content">
+                                        <strong>No transactions yet</strong>
+                                        <span>Your activity will appear here once you add or sync transactions.</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </aside>
+        <!-- Context menu for transaction rows -->
+        <div id="txn-context-menu"
+             class="context-menu"
+             data-current-month="{{ current_month }}"
+             data-current-year="{{ year if year is not none else now_year }}"
+             style="position: fixed;
+                    z-index: 9999;
+                    display: none">
+            <!-- MAIN MENU -->
+            <ul class="context-menu__list" data-view="main">
+                <li class="context-menu__item"
+                    role="button"
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=budgets]').style.display = 'block'; ">
+                    Assign budget
+                </li>
+                <li class="context-menu__item danger"
+                    data-action="remove-budget"
+                    role="button"
+                    hx-delete="/transactions/budget"
+                    hx-target="#explorer-history"
+                    hx-swap="innerHTML"
+                    hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); if (!Number(menu.dataset.txnBudgeted)) { event.preventDefault(); alert('This transaction is not assigned to a budget.'); return; } ; htmx:afterRequest: const menu = document.getElementById('txn-context-menu'); menu.classList.remove('is-visible'); menu.style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';"
+                    hx-confirm="Remove this transaction from its assigned budget? This won’t delete the transaction itself.">
+                    Remove budget
+                </li>
+                <li class="context-menu__item"
+                    role="button"
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=note]').style.display = 'block'; ">
+                    Edit note
+                </li>
+            </ul>
+            <!-- BUDGET LIST VIEW -->
+            <div class="context-menu__view" data-view="budgets" style="display:none;">
+                <div class="context-menu__header"
+                     role="button"
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=budgets]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                    ← Assign budget
+                </div>
+                {% include "partials/explorer/context_menu_budgets.html" %}
+            </div>
+            <!-- NOTE VIEW -->
+            <div class="context-menu__view" data-view="note" style="display:none;">
+                <div class="context-menu__header"
+                     role="button"
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                    ← Edit note
+                </div>
+                <div class="context-menu__note">
+                    <textarea class="context-menu__note-input"
+                              placeholder="Add a note for this transaction…"
+                              rows="4"></textarea>
+                    <div class="context-menu__note-actions">
+                        <button class="pill pill--xsmall pill--secondary"
+                                hx-on="click: const menu = document.getElementById('txn-context-menu'); const input = menu.querySelector('.context-menu__note-input'); input.value = menu.dataset.txnNote || ''; menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';">
+                            Cancel
+                        </button>
+                        <button class="pill pill--xsmall pill--primary"
+                                hx-post="/transactions/note"
+                                hx-target="#explorer-history"
+                                hx-swap="innerHTML"
+                                hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, note: document.querySelector(".context-menu__note-input").value, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
+                                hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.dataset.txnNote = document.querySelector('.context-menu__note-input').value; menu.classList.remove('is-visible'); menu.style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; menu.querySelector('[data-view=note]').style.display = 'none';">
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>

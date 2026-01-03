@@ -1,6 +1,7 @@
 # MARK: Imports
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import MetaData, create_engine, delete, insert, select, update
 
@@ -45,6 +46,19 @@ class Sqlite3(DataStore):
         self.transactions = self.meta.tables["transactions"]
         self.plaid_accounts = self.meta.tables["plaid_accounts"]
         self.accounts = self.meta.tables["accounts"]
+
+    @staticmethod
+    def __rows_to_transaction_views(rows: Any) -> list[TransactionView]:
+        views = []
+        for row in rows:
+            data = dict(row._mapping)
+            occurred = data.get("occurred_at")
+            data.pop("account_id")
+            data.pop("fingerprint")
+            if isinstance(occurred, str):
+                data["occurred_at"] = datetime.fromisoformat(occurred)
+            views.append(TransactionView(**data))
+        return views
 
     # MARK: - Budgets
     def insert_budget(
@@ -108,9 +122,10 @@ class Sqlite3(DataStore):
                 "direction": obj.direction,
                 "external_id": obj.external_id,
                 "account_id": obj.account_id,
+                "fingerprint": obj.fingerprint,
             }
             if obj.occurred_at:
-                values["occurred_at"] = obj.occurred_at
+                values["occurred_at"] = obj.occurred_at.isoformat()
             if obj.note:
                 values["note"] = obj.note
             result = conn.execute(
@@ -136,17 +151,59 @@ class Sqlite3(DataStore):
                 select(self.transactions).where(self.transactions.c.id == id)
             ).fetchone()
 
-    def retrieve_transactions(self) -> list[Transaction]:
+    def retrieve_transactions(self) -> list[TransactionView]:
         with self.engine.begin() as conn:
-            return conn.execute(select(self.transactions)).fetchall()
-
-    def filter_transactions(self, start: datetime, end: datetime) -> list[Transaction]:
-        with self.engine.begin() as conn:
-            return conn.execute(
-                select(self.transactions)
-                .where(self.transactions.c.occurred_at >= start)
-                .where(self.transactions.c.occurred_at < end)
+            rows = conn.execute(
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
+                .join(
+                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+                .outerjoin(
+                    self.budgets_transactions,
+                    self.transactions.c.id
+                    == self.budgets_transactions.c.transaction_id,
+                )
+                .outerjoin(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
+                )
+                .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+            return Sqlite3.__rows_to_transaction_views(rows)
+
+    def filter_transactions(
+        self, start: datetime, end: datetime
+    ) -> list[TransactionView]:
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
+                .join(
+                    self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+                .outerjoin(
+                    self.budgets_transactions,
+                    self.transactions.c.id
+                    == self.budgets_transactions.c.transaction_id,
+                )
+                .outerjoin(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
+                )
+                .where(self.transactions.c.occurred_at >= start.date())
+                .where(self.transactions.c.occurred_at < end.date())
+                .order_by(self.transactions.c.occurred_at.desc())
+            ).fetchall()
+
+            return Sqlite3.__rows_to_transaction_views(rows)
 
     # MARK: - Tags
     def insert_tag(self, name: str) -> int:
@@ -225,12 +282,24 @@ class Sqlite3(DataStore):
             return conn.execute(select(self.plaid_accounts)).fetchall()
 
     # MARK: - Accounts
+    def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.accounts.c.id)
+                .where(self.accounts.c.fingerprint == fingerprint)
+                .limit(1)
+            ).first()
+
+            return row.id if row else None
+
     def insert_account(self, obj: PartialAccount) -> int:
         values = {
             "name": obj.name,
             "external_id": obj.external_id,
             "source": obj.source,
             "account_type": obj.account_type,
+            "fingerprint": obj.fingerprint,
+            "balance": dollars_to_cents(obj.balance),
         }
         if obj.plaid_id:
             values["plaid_id"] = obj.plaid_id
@@ -273,9 +342,9 @@ class Sqlite3(DataStore):
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
         with self.engine.begin() as conn:
             conn.execute(
-                insert(self.budgets_transactions).values(
-                    transaction_id=transaction_id, budget_id=budget_id
-                )
+                insert(self.budgets_transactions)
+                .values(transaction_id=transaction_id, budget_id=budget_id)
+                .prefix_with("OR IGNORE")
             )
 
     def delete_budget_transaction(self, budget_id: int, transaction_id: int):
@@ -291,8 +360,12 @@ class Sqlite3(DataStore):
         Return all transactions linked to a given budget.
         """
         with self.engine.begin() as conn:
-            return conn.execute(
-                select(self.transactions, self.accounts.c.name.label("account_name"))
+            rows = conn.execute(
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
                 .join(
                     self.budgets_transactions,
                     self.transactions.c.id
@@ -301,6 +374,22 @@ class Sqlite3(DataStore):
                 .join(
                     self.accounts, self.transactions.c.account_id == self.accounts.c.id
                 )
+                .outerjoin(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
+                )
                 .where(self.budgets_transactions.c.budget_id == budget_id)
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+            return Sqlite3.__rows_to_transaction_views(rows)
+
+    def select_budget_id_for_transaction(self, transaction_id: int) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.budgets_transactions.c.budget_id)
+                .where(self.budgets_transactions.c.transaction_id == transaction_id)
+                .limit(1)
+            ).first()
+
+            return row.budget_id if row else None

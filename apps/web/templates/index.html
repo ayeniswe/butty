@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Budget Dashboard</title>
-  <script src="/static/js/htmx.min.js"></script>
-  <link rel="stylesheet" href="/static/css/styles.css" />
-</head>
-
-<body>
-  {% include "partials/dashboard.html" %}
-</body>
-
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description"
+              content="Personal budget dashboard to track accounts, transactions, and monthly spending in one clean, simple view." />
+        <meta name="keywords"
+              content="budget dashboard, personal finance, expense tracking, bank accounts, transactions, monthly budget, spending analysis, financial overview" />
+        <title>Budget Dashboard</title>
+        <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+        <script src="/static/js/htmx.min.js"></script>
+        <script src="/static/js/plaid.js" defer></script>
+        <script src="/static/js/ui.js" defer></script>
+        <link rel="stylesheet" href="/static/css/styles.css" />
+    </head>
+    <body>{% include "partials/dashboard.html" %}</body>
 </html>

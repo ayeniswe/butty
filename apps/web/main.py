@@ -4,12 +4,13 @@ from datetime import datetime
 from typing import Annotated
 
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from core.datastore.db import Sqlite3
+from core.model import AppleTransaction
 from core.service import Service
 from core.utils import cents_to_dollars, derive_month_context
 
@@ -27,6 +28,9 @@ app = FastAPI(title="Budget Dashboard", lifespan=startup)
 # Routers
 root_router = APIRouter()
 budget_router = APIRouter(prefix="/budgets")
+link_router = APIRouter(prefix="/link")
+account_router = APIRouter(prefix="/accounts")
+transactions_router = APIRouter(prefix="/transactions")
 tag_router = APIRouter(prefix="/tags")
 
 
@@ -42,14 +46,47 @@ app.mount("/static", StaticFiles(directory="apps/web/static"), name="static")
 
 
 def _base_context(service: Service) -> dict:
-    return {
-        "summary": service.summary_card,
-        "sync_actions": service.sync_actions,
-    }
+    return {"summary": service.summary_card}
 
 
 def _month_context(month: int | None = None, year: int | None = None) -> dict:
     return derive_month_context(month, year)
+
+
+def _activity_context(
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = None,
+    year: int | None = None,
+) -> dict:
+    mth_ctx = _month_context(month, year)
+    recent_transactions = service.get_all_recent_transactions(
+        mth_ctx["current_month"], mth_ctx["year"], True
+    )
+    transactions = service.get_all_transactions()
+    accounts = service.get_all_accounts()
+    return {
+        "recent_transactions": recent_transactions,
+        "transactions": transactions,
+        "accounts": accounts,
+        "budgets": service.get_all_budgets(mth_ctx["current_month"], mth_ctx["year"]),
+        **mth_ctx,
+    }
+
+
+def _explorer_response(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = None,
+    year: int | None = None,
+):
+    return templates.TemplateResponse(
+        "partials/explorer/index.html",
+        {
+            "request": request,
+            **_activity_context(service, month, year),
+            **_base_context(service),
+        },
+    )
 
 
 # MARK: Root Routes
@@ -92,36 +129,47 @@ def summary_card(
 
 @root_router.get("/explorer", response_class=HTMLResponse)
 def explorer_panel(
-    request: Request, service: Annotated[Service, Depends(get_service)]
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "partials/explorer.html", {"request": request, **_base_context(service)}
-    )
+    return _explorer_response(request, service, month, year)
 
 
 @root_router.get("/explorer/search", response_class=HTMLResponse)
 def explorer_search(
-    request: Request, service: Annotated[Service, Depends(get_service)], q: str = ""
+    request: Request, service: Annotated[Service, Depends(get_service)], query: str = ""
 ) -> HTMLResponse:
-    query = q.lower().strip()
+    query = query.lower().strip()
+
+    # TODO apply better perf
+    # Raw and dirty but obviously better way
+    transactions = service.get_all_transactions()
     filtered = (
         [
             tx
-            for tx in service.transactions
-            if query in tx["description"].lower()
-            or query in tx["account"].lower()
-            or query in tx["date"].lower()
+            for tx in transactions
+            if query in tx.name.lower()
+            or query in tx.account_name.lower()
+            or query
+            in tx.occurred_at.strftime(
+                "%b %d, %Y %I:%M %p"
+            ).lower()  # format Jan 08, 2026 12:00 AM
+            or (tx.budget_name and query in tx.budget_name.lower())
+            and query in tx.budget_name.lower()
         ]
         if query
-        else service.transactions
+        else transactions
     )
+
     context = {
         "request": request,
-        **_base_context(service),
         "transactions": filtered,
-        "query": q,
+        "query": query,
+        **_base_context(service),
     }
-    return templates.TemplateResponse("partials/explorer.html", context)
+    return templates.TemplateResponse("partials/explorer/search.html", context)
 
 
 # MARK: - Budget CRUD
@@ -452,12 +500,120 @@ def tag_search(
     )
 
 
+# MARK: Transactions
+
+
+@transactions_router.get("/context-menu/budgets", response_class=HTMLResponse)
+def context_menu_budgets(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    mth_ctx = _month_context(month, year)
+    return templates.TemplateResponse(
+        "partials/explorer/context_menu_budgets.html",
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                mth_ctx["current_month"], mth_ctx["year"]
+            ),
+            **mth_ctx,
+        },
+    )
+
+
+@transactions_router.post("/note", response_class=HTMLResponse)
+def transaction_note(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    note: str = Form(""),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    service.update_transaction_note(transaction_id, note)
+    return _explorer_response(request, service, month, year)
+
+
+@transactions_router.post("/budget", response_class=HTMLResponse)
+def transaction_assign_budget(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    budget_id: int = Form(...),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    try:
+        service.assign_transaction_to_budget(budget_id, transaction_id, month, year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _explorer_response(request, service, month, year)
+
+
+@transactions_router.delete("/budget", response_class=HTMLResponse)
+def transaction_remove_budget(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    service.unassign_transaction_to_budget(None, transaction_id)
+    return _explorer_response(request, service, month, year)
+
+
+@transactions_router.get("/sync", response_class=HTMLResponse)
+def sync_transactions(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+) -> HTMLResponse:
+    service.sync_all_transactions()
+    return _explorer_response(request, service)
+
+
+@transactions_router.post("/sync/apple", response_class=HTMLResponse)
+def sync_transactions_apple_webhook(
+    service: Annotated[Service, Depends(get_service)], payload: list[AppleTransaction]
+):
+    service.sync_apple_transactions(payload)
+
+
+# MARK: Plaid
+
+
+@link_router.get("", response_class=HTMLResponse)
+def link_by_plaid(
+    request: Request, service: Annotated[Service, Depends(get_service)]
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/plaid_button.html",
+        {"request": request, "link_token": service.get_plaid_token()},
+    )
+
+
+@account_router.post("/plaid", response_class=HTMLResponse)
+def create_account_by_plaid(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    public_token: str = Form(...),
+) -> HTMLResponse:
+    service.create_accounts_by_plaid(public_token)
+    service.sync_all_transactions()
+    return _explorer_response(request, service)
+
+
 # MARK: Router Registration
 
 
 app.include_router(root_router)
 app.include_router(budget_router)
 app.include_router(tag_router)
+app.include_router(link_router)
+app.include_router(account_router)
+app.include_router(transactions_router)
 
 
 # MARK: Dev Entrypoint

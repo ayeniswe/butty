@@ -1,3 +1,5 @@
+import hashlib
+import re
 from calendar import month_name
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -33,17 +35,33 @@ def derive_month_context(month: int | None = None, year: int | None = None):
     current_year = base_year + year_offset
     current_month = normalized_month + 1
 
-    current = datetime(year=current_year, month=current_month, day=1)
-
     return {
-        "current_month_name": month_name[current.month][0:3],
-        "current_month": current.month,
-        "prev_year": current.year - 1 if current.month == 1 else current.year,
-        "year": current.year,
+        "current_month_name": month_name[current_month][0:3],
+        "current_month": current_month,
+        "prev_year": current_year - 1 if current_month == 1 else current_year,
+        "year": current_year,
         "now_year": now.year,
         "now_month": now.month,
-        "readonly": (current_year == now.year and current.month < now.month)
+        "readonly": (current_year == now.year and current_month < now.month)
         or (current_year < now.year),
-        "next_month": current.month + 1,
-        "prev_month": current.month - 1,
+        "next_month": current_month + 1,
+        "prev_month": current_month - 1,
     }
+
+
+def normalize(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def build_fingerprint(*values: str | None) -> str:
+    """
+    Deterministic fingerprint builder.
+
+    - Accepts any number of values
+    - Order matters (caller-controlled)
+    - Values are normalized before hashing
+    """
+    canonical = "|".join(normalize(v) for v in values)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

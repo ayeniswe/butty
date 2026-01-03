@@ -32,7 +32,7 @@ class Transaction:
     name: str
     amount: int
     direction: TransactionDirection
-    occurred_at: datetime
+    occurred_at: str
     account_id: int
     external_id: str | None
     note: str | None
@@ -46,6 +46,7 @@ class TransactionView:
     direction: TransactionDirection
     occurred_at: datetime
     account_name: str
+    budget_name: str | None
     external_id: str | None
     note: str | None
 
@@ -56,6 +57,7 @@ class PartialTransaction:
     amount: float
     direction: TransactionDirection
     account_id: int
+    fingerprint: str
     note: str | None = None
     external_id: str | None = None
     occurred_at: datetime | None = None
@@ -100,6 +102,7 @@ class Account:
     account_type: str
     source: TransactionSource
     name: str
+    balance: int
     plaid_id: int | None
 
 
@@ -109,4 +112,6 @@ class PartialAccount:
     source: TransactionSource
     account_type: str
     name: str
+    balance: int
+    fingerprint: str
     plaid_id: int | None = None

@@ -41,50 +41,50 @@ def test_not_null_constraints(db: sqlite3.Connection):
 
 def test_direction_enum_invalid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0, "fp-acct-txn-1"),
     )
 
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
             """
-            INSERT INTO transactions (name, amount, direction, account_id)
-            VALUES ('bad', 100, 'sideways', 1);
+            INSERT INTO transactions (name, amount, direction, account_id, fingerprint)
+            VALUES ('bad', 100, 'sideways', 1, 'fp-txn-1');
             """
         )
 
 
 def test_direction_enum_valid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0, "fp-acct-txn-2"),
     )
 
     db.execute(
         """
-        INSERT INTO transactions (name, amount, direction, account_id)
-        VALUES ('salary', 500000, 'IN', 1);
+        INSERT INTO transactions (name, amount, direction, account_id, fingerprint)
+        VALUES ('salary', 500000, 'IN', 1, 'fp-txn-2');
         """
     )
 
     db.execute(
         """
-        INSERT INTO transactions (name, amount, direction, account_id)
-        VALUES ('groceries', 3500, 'OUT', 1);
+        INSERT INTO transactions (name, amount, direction, account_id, fingerprint)
+        VALUES ('groceries', 3500, 'OUT', 1, 'fp-txn-3');
         """
     )
 
 
 def test_default_occurred_at(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0, "fp-acct-txn-3"),
     )
 
     db.execute(
         """
-        INSERT INTO transactions (name, amount, direction, account_id)
-        VALUES ('coffee', 400, 'OUT', 1);
+        INSERT INTO transactions (name, amount, direction, account_id, fingerprint)
+        VALUES ('coffee', 400, 'OUT', 1, 'fp-txn-4');
         """
     )
     db.commit()
@@ -96,15 +96,15 @@ def test_default_occurred_at(db: sqlite3.Connection):
 
 def test_autoincrement_id(db):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0, "fp-acct-txn-4"),
     )
 
     db.execute(
-        "INSERT INTO transactions (name, amount, direction, account_id) VALUES ('A', 23, 'IN', 1);"
+        "INSERT INTO transactions (name, amount, direction, account_id, fingerprint) VALUES ('A', 23, 'IN', 1, 'fp-txn-5');"
     )
     db.execute(
-        "INSERT INTO transactions (name, amount, direction, account_id) VALUES ('B', 24, 'OUT', 1);"
+        "INSERT INTO transactions (name, amount, direction, account_id, fingerprint) VALUES ('B', 24, 'OUT', 1, 'fp-txn-6');"
     )
 
     ids = [r[0] for r in db.execute("SELECT id FROM transactions ORDER BY id;")]
@@ -113,20 +113,20 @@ def test_autoincrement_id(db):
 
 def test_external_id_unique_dup_dropped(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type) VALUES (?,?,?,?)",
-        ("Test Account", "ext-a", "APPLE", "DEPOSITORY"),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ("Test Account", "ext-a", "APPLE", "DEPOSITORY", 0, "fp-acct-txn-5"),
     )
 
     db.execute(
         """
-        INSERT INTO transactions (name, amount, direction, external_id, account_id)
-        VALUES ('txn1', 1000, 'IN', 'ext-123', 1);
+        INSERT INTO transactions (name, amount, direction, external_id, account_id, fingerprint)
+        VALUES ('txn1', 1000, 'IN', 'ext-123', 1, 'fp-txn-7');
         """
     )
 
     db.execute(
         """
-        INSERT INTO transactions (name, amount, direction, external_id, account_id)
-        VALUES ('txn2', 2000, 'OUT', 'ext-123', 1);
+        INSERT INTO transactions (name, amount, direction, external_id, account_id, fingerprint)
+        VALUES ('txn2', 2000, 'OUT', 'ext-123', 1, 'fp-txn-8');
         """
     )

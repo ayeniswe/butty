@@ -141,6 +141,8 @@ def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-1",
         )
     )
     with db.engine.begin() as conn:
@@ -151,6 +153,7 @@ def test_insert_transaction_uses_db_default_occurred_at(db: Sqlite3):
                 TransactionDirection.OUT,
                 external_id="ext-45",
                 account_id=1,
+                fingerprint="fp-txn-1",
             )
         )
         row = conn.execute(select(db.transactions)).first()
@@ -165,18 +168,25 @@ def test_insert_transaction_with_explicit_occurred_at(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-2",
         )
     )
-    ts = "2024-01-01 10:00:00"
+    ts = datetime(2024, 1, 1)
     db.insert_transaction(
         PartialTransaction(
-            "Salary", 3000, TransactionDirection.IN, occurred_at=ts, account_id=1
+            "Salary",
+            3000,
+            TransactionDirection.IN,
+            occurred_at=ts,
+            account_id=1,
+            fingerprint="fp-txn-2",
         )
     )
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
 
-    assert row.occurred_at == ts
+    assert row.occurred_at == "2024-01-01T00:00:00"
 
 
 def test_update_transaction_note(db: Sqlite3):
@@ -186,10 +196,18 @@ def test_update_transaction_note(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-3",
         )
     )
     db.insert_transaction(
-        PartialTransaction("Groceries", 50, TransactionDirection.OUT, account_id=1),
+        PartialTransaction(
+            "Groceries",
+            50,
+            TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-3",
+        ),
     )
     with db.engine.begin() as conn:
         row = conn.execute(select(db.transactions)).first()
@@ -208,10 +226,18 @@ def test_delete_transaction(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-4",
         )
     )
     db.insert_transaction(
-        PartialTransaction("Delete Me", 1, TransactionDirection.OUT, account_id=1),
+        PartialTransaction(
+            "Delete Me",
+            1,
+            TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-4",
+        ),
     )
     db.delete_transaction(1)
 
@@ -226,33 +252,66 @@ def test_select_transaction(db: Sqlite3):
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-5",
         )
     )
     db.insert_transaction(
-        PartialTransaction("Trans", 100, TransactionDirection.OUT, account_id=1),
+        PartialTransaction(
+            "Trans", 100, TransactionDirection.OUT, account_id=1, fingerprint="fp-txn-5"
+        ),
     )
     assert db.select_transaction(1) is not None
 
 
 def test_retrieve_transactions(db: Sqlite3):
+    # create account
     db.insert_account(
         PartialAccount(
             name="Default Account",
             external_id="ext-acc-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-6",
         )
     )
-    db.insert_transaction(
-        PartialTransaction("Trans 1", 1, TransactionDirection.OUT, account_id=1),
+
+    # create budget
+    db.insert_budget("General", 100)
+
+    # create transactions
+    tx1 = db.insert_transaction(
+        PartialTransaction(
+            "Trans 1",
+            1,
+            TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-6a",
+        ),
     )
-    db.insert_transaction(
-        PartialTransaction("Trans 2", 2, TransactionDirection.IN, account_id=1),
+    tx2 = db.insert_transaction(
+        PartialTransaction(
+            "Trans 2", 2, TransactionDirection.IN, account_id=1, fingerprint="fp-txn-6b"
+        ),
     )
-    db.insert_transaction(
-        PartialTransaction("Trans 3", 3, TransactionDirection.OUT, account_id=1),
+    tx3 = db.insert_transaction(
+        PartialTransaction(
+            "Trans 3",
+            3,
+            TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-6c",
+        ),
     )
-    assert len(db.retrieve_transactions()) == 3
+
+    # link transactions to budget
+    db.insert_budget_transaction(1, tx1)
+    db.insert_budget_transaction(1, tx2)
+    db.insert_budget_transaction(1, tx3)
+
+    rows = db.retrieve_transactions()
+    assert len(rows) == 3
 
 
 def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
@@ -263,6 +322,8 @@ def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
             external_id="ext-filter",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-7",
         )
     )
 
@@ -273,6 +334,7 @@ def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
             amount=10,
             direction=TransactionDirection.OUT,
             account_id=1,
+            fingerprint="fp-txn-7a",
         )
     )
     db.insert_transaction(
@@ -281,6 +343,7 @@ def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
             amount=20,
             direction=TransactionDirection.OUT,
             account_id=1,
+            fingerprint="fp-txn-7b",
         )
     )
     db.insert_transaction(
@@ -289,6 +352,7 @@ def test_filter_transactions_by_occurred_at_range(db: Sqlite3):
             amount=30,
             direction=TransactionDirection.OUT,
             account_id=1,
+            fingerprint="fp-txn-7c",
         )
     )
 
@@ -417,6 +481,8 @@ def test_insert_account_without_plaid_id(db: Sqlite3):
             external_id="ext-manual",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-8",
         )
     )
 
@@ -438,6 +504,8 @@ def test_insert_account_with_plaid_id(db: Sqlite3):
             source="PLAID",
             plaid_id=1,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-9",
         )
     )
 
@@ -456,6 +524,8 @@ def test_select_account(db: Sqlite3):
             external_id="ext-sel",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-10",
         )
     )
 
@@ -473,6 +543,8 @@ def test_select_account_by_ext_id(db: Sqlite3):
             external_id="ext-sel",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-11",
         )
     )
 
@@ -490,6 +562,8 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-12a",
         )
     )
     db.insert_account(
@@ -498,6 +572,8 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-2",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-12b",
         )
     )
     db.insert_account(
@@ -506,6 +582,8 @@ def test_retrieve_accounts(db: Sqlite3):
             external_id="ext-3",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-12c",
         )
     )
 
@@ -524,6 +602,8 @@ def test_delete_account(db: Sqlite3):
             external_id="ext-del",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-13",
         )
     )
 
@@ -600,6 +680,8 @@ def test_insert_budget_transaction_link(db: Sqlite3):
             external_id="ext-bt-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-14",
         )
     )
 
@@ -610,6 +692,7 @@ def test_insert_budget_transaction_link(db: Sqlite3):
             amount=120,
             direction=TransactionDirection.OUT,
             account_id=1,
+            fingerprint="fp-txn-14",
         )
     )
 
@@ -636,6 +719,8 @@ def test_delete_budget_transaction_link(db: Sqlite3):
             external_id="ext-bt-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-15",
         )
     )
 
@@ -646,6 +731,7 @@ def test_delete_budget_transaction_link(db: Sqlite3):
             amount=120,
             direction=TransactionDirection.OUT,
             account_id=1,
+            fingerprint="fp-txn-15",
         )
     )
 
@@ -680,6 +766,8 @@ def test_insert_account_returns_id(db: Sqlite3):
             external_id="ret-1",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-16",
         )
     )
     assert account_id == 1
@@ -692,6 +780,8 @@ def test_insert_transaction_returns_id(db: Sqlite3):
             external_id="ret-tx",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-17",
         )
     )
 
@@ -702,6 +792,7 @@ def test_insert_transaction_returns_id(db: Sqlite3):
             direction=TransactionDirection.OUT,
             account_id=1,
             note="For TX tests",
+            fingerprint="fp-txn-17",
         )
     )
     assert tx_id == 1
@@ -719,6 +810,8 @@ def test_select_account_by_id(db: Sqlite3):
             external_id="by-id",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-18",
         )
     )
 
@@ -763,6 +856,8 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             external_id="view-acc",
             source=TransactionSource.APPLE,
             account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-19",
         )
     )
 
@@ -772,7 +867,8 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             amount=10,
             direction=TransactionDirection.OUT,
             account_id=1,
-            occurred_at="2024-01-01",
+            occurred_at=datetime(2024, 1, 1),
+            fingerprint="fp-txn-19a",
         )
     )
 
@@ -782,7 +878,8 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
             amount=20,
             direction=TransactionDirection.OUT,
             account_id=1,
-            occurred_at="2024-02-01",
+            occurred_at=datetime(2024, 2, 1),
+            fingerprint="fp-txn-19b",
         )
     )
 
@@ -800,3 +897,59 @@ def test_retrieve_budget_transactions_view(db: Sqlite3):
 
     # joined account name present
     assert rows[0].account_name == "Checking"
+
+
+def test_account_exists_by_fingerprint(db: Sqlite3):
+    # insert first account
+    db.insert_account(
+        PartialAccount(
+            name="Fingerprint Account",
+            external_id="ext-fp-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-exists-1",
+        )
+    )
+
+    # should exist
+    assert db.account_exists_by_fingerprint("fp-exists-1") == 1
+
+    # should not exist
+    assert db.account_exists_by_fingerprint("fp-does-not-exist") is None
+
+
+def test_select_budget_id_for_transaction(db: Sqlite3):
+    # create budget
+    db.insert_budget("Utilities", 200)
+
+    # create account
+    db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="ext-sel-bt",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-sel-bt",
+        )
+    )
+
+    # create transaction
+    tx_id = db.insert_transaction(
+        PartialTransaction(
+            name="Electric Bill",
+            amount=75,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-sel-bt",
+        )
+    )
+
+    # link transaction to budget
+    db.insert_budget_transaction(1, tx_id)
+
+    # verify lookup
+    budget_id = db.select_budget_id_for_transaction(tx_id)
+
+    assert budget_id == 1

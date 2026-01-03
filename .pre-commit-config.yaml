@@ -5,3 +5,15 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: https://github.com/Riverside-Healthcare/djLint
+    rev: v1.34.1
+    hooks:
+      - id: djlint
+        args:
+          - --profile=jinja
+          - --configuration=pyproject.toml
+          - --ignore=H021,J004
+      - id: djlint-reformat
+        args:
+          - --profile=jinja
+          - --configuration=pyproject.toml

@@ -4,10 +4,12 @@ import pytest
 
 from core.datastore.model import TransactionDirection
 from core.utils import (
+    build_fingerprint,
     cents_to_dollars,
     derive_direction,
     derive_month_context,
     dollars_to_cents,
+    normalize,
 )
 
 
@@ -89,9 +91,41 @@ class TestDeriveMonthContext:
         assert ctx["next_month"] == 2
 
     def test_readonly_for_non_current_month(self):
-        today = date.today()
-
-        ctx = derive_month_context(month=today.month - 1, year=today.year)
+        ctx = derive_month_context(month=12, year=2025)
         assert ctx["readonly"] is True
-        assert ctx["year"] == today.year
-        assert ctx["current_month"] == today.month - 1
+        assert ctx["year"] == 2025
+        assert ctx["current_month"] == 12
+
+
+class TestNormalize:
+    def test_none_returns_empty(self):
+        assert normalize(None) == ""
+
+    def test_empty_string(self):
+        assert normalize("") == ""
+
+    def test_trim_and_lowercase(self):
+        assert normalize("  Hello World  ") == "hello world"
+
+    def test_collapse_whitespace(self):
+        assert normalize("Hello    World   Again") == "hello world again"
+
+    def test_mixed_case_and_tabs(self):
+        assert normalize("  HeLLo\tWoRLD ") == "hello world"
+
+
+class TestBuildFingerprint:
+    def test_same_inputs_produce_same_fingerprint(self):
+        fp1 = build_fingerprint("Account", "Checking", "1234")
+        fp2 = build_fingerprint("Account", "Checking", "1234")
+        assert fp1 == fp2
+
+    def test_order_matters(self):
+        fp1 = build_fingerprint("a", "b")
+        fp2 = build_fingerprint("b", "a")
+        assert fp1 != fp2
+
+    def test_multiple_values(self):
+        fp1 = build_fingerprint("acc", "2025-01-01", "1000", "walmart")
+        fp2 = build_fingerprint("acc", "2025-01-01", "1000", "walmart")
+        assert fp1 == fp2

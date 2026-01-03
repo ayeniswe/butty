@@ -53,12 +53,12 @@ class DataStore(ABC):
     def select_transaction(self, id: int) -> Transaction: ...
 
     @abstractmethod
-    def retrieve_transactions(self) -> list[Transaction]: ...
+    def retrieve_transactions(self) -> list[TransactionView]: ...
 
     @abstractmethod
     def filter_transactions(
         self, start: datetime, end: datetime
-    ) -> list[Transaction]: ...
+    ) -> list[TransactionView]: ...
 
     # -------- Tags --------
     @abstractmethod
@@ -101,6 +101,9 @@ class DataStore(ABC):
 
     # -------- Accounts --------
     @abstractmethod
+    def account_exists_by_fingerprint(self, fingerprint: str) -> int | None: ...
+
+    @abstractmethod
     def insert_account(self, obj: PartialAccount) -> int: ...
 
     @abstractmethod
@@ -124,3 +127,6 @@ class DataStore(ABC):
 
     @abstractmethod
     def retrieve_budget_transactions(self, budget_id: int) -> list[TransactionView]: ...
+
+    @abstractmethod
+    def select_budget_id_for_transaction(self, transaction_id: int) -> int | None: ...

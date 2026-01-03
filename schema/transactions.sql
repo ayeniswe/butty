@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS
         external_id TEXT UNIQUE ON CONFLICT IGNORE,
         account_id INTEGER NOT NULL,
         note TEXT NOT NULL DEFAULT '',
+        fingerprint TEXT NOT NULL UNIQUE,
         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
     );
