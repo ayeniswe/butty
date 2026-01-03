@@ -74,13 +74,13 @@
                 {% if recent_transactions and recent_transactions|length > 0 %}
                     {% for transaction in recent_transactions %}
                         <li data-txn-id="{{ transaction.id }}"
-                            data-txn-occurred-at="{{ transaction.occurred_at.isoformat() if transaction.occurred_at.__class__.__name__ != 'str' else transaction.occurred_at }}"
+                            data-txn-occurred-at="{{ transaction.occurred_at }}"
                             data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
                             data-txn-note="{{ transaction.note | default("") }}"
                             hx-on="contextmenu: openTxnContextMenu(event, this)">
                             <div>
                                 <p class="list__title">{{ transaction.name }}</p>
-                                <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at }}</p>
+                                <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</p>
                             </div>
                             <span class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
                                 {{ '$%.2f' % (transaction.amount / 100) }}
@@ -158,11 +158,11 @@
                             {% for transaction in transactions %}
                                 <tr class="explorer-row"
                                     data-txn-id="{{ transaction.id }}"
-                                    data-txn-occurred-at="{{ transaction.occurred_at.isoformat() if transaction.occurred_at.__class__.__name__ != 'str' else transaction.occurred_at }}"
+                                    data-txn-occurred-at="{{ transaction.occurred_at }}"
                                     data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
                                     data-txn-note="{{ transaction.note | default("") }}"
                                     hx-on="contextmenu: openTxnContextMenu(event, this)">
-                                    <td>{{ transaction.occurred_at }}</td>
+                                    <td>{{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</td>
                                     <td class="strong">{{ transaction.name }}</td>
                                     <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
                                     <td class="align-center">

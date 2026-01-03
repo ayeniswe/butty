@@ -38,4 +38,5 @@ function openTxnContextMenu(event, rowEl) {
 
     menu.style.display = 'block';
     menu.classList.add('is-visible');
+    htmx.trigger(document.body, 'txn-menu-open');
 }

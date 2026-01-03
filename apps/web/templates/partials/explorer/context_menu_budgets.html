@@ -1,5 +1,6 @@
 <ul id="txn-context-budget-list"
     class="context-menu__list context-menu__list--scroll"
+    hx-trigger="txn-menu-open from:body"
     hx-target="#txn-context-budget-list"
     hx-swap="outerHTML"
     hx-get="/transactions/context-menu/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}">

@@ -32,7 +32,7 @@ class Transaction:
     name: str
     amount: int
     direction: TransactionDirection
-    occurred_at: datetime
+    occurred_at: str
     account_id: int
     external_id: str | None
     note: str | None

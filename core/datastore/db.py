@@ -1,6 +1,7 @@
 # MARK: Imports
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import MetaData, create_engine, delete, insert, select, update
 
@@ -45,6 +46,19 @@ class Sqlite3(DataStore):
         self.transactions = self.meta.tables["transactions"]
         self.plaid_accounts = self.meta.tables["plaid_accounts"]
         self.accounts = self.meta.tables["accounts"]
+
+    @staticmethod
+    def __rows_to_transaction_views(rows: Any) -> list[TransactionView]:
+        views = []
+        for row in rows:
+            data = dict(row._mapping)
+            occurred = data.get("occurred_at")
+            data.pop("account_id")
+            data.pop("fingerprint")
+            if isinstance(occurred, str):
+                data["occurred_at"] = datetime.fromisoformat(occurred)
+            views.append(TransactionView(**data))
+        return views
 
     # MARK: - Budgets
     def insert_budget(
@@ -139,7 +153,7 @@ class Sqlite3(DataStore):
 
     def retrieve_transactions(self) -> list[TransactionView]:
         with self.engine.begin() as conn:
-            return conn.execute(
+            rows = conn.execute(
                 select(
                     self.transactions,
                     self.accounts.c.name.label("account_name"),
@@ -160,19 +174,36 @@ class Sqlite3(DataStore):
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
 
+            return Sqlite3.__rows_to_transaction_views(rows)
+
     def filter_transactions(
         self, start: datetime, end: datetime
     ) -> list[TransactionView]:
         with self.engine.begin() as conn:
-            return conn.execute(
-                select(self.transactions, self.accounts.c.name.label("account_name"))
+            rows = conn.execute(
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
                 .join(
                     self.accounts, self.transactions.c.account_id == self.accounts.c.id
+                )
+                .outerjoin(
+                    self.budgets_transactions,
+                    self.transactions.c.id
+                    == self.budgets_transactions.c.transaction_id,
+                )
+                .outerjoin(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
                 )
                 .where(self.transactions.c.occurred_at >= start.date())
                 .where(self.transactions.c.occurred_at < end.date())
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+            return Sqlite3.__rows_to_transaction_views(rows)
 
     # MARK: - Tags
     def insert_tag(self, name: str) -> int:
@@ -329,8 +360,12 @@ class Sqlite3(DataStore):
         Return all transactions linked to a given budget.
         """
         with self.engine.begin() as conn:
-            return conn.execute(
-                select(self.transactions, self.accounts.c.name.label("account_name"))
+            rows = conn.execute(
+                select(
+                    self.transactions,
+                    self.accounts.c.name.label("account_name"),
+                    self.budgets.c.name.label("budget_name"),
+                )
                 .join(
                     self.budgets_transactions,
                     self.transactions.c.id
@@ -339,9 +374,15 @@ class Sqlite3(DataStore):
                 .join(
                     self.accounts, self.transactions.c.account_id == self.accounts.c.id
                 )
+                .outerjoin(
+                    self.budgets,
+                    self.budgets_transactions.c.budget_id == self.budgets.c.id,
+                )
                 .where(self.budgets_transactions.c.budget_id == budget_id)
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+            return Sqlite3.__rows_to_transaction_views(rows)
 
     def select_budget_id_for_transaction(self, transaction_id: int) -> int | None:
         with self.engine.begin() as conn:
