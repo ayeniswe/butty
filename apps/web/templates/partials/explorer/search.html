@@ -1,12 +1,13 @@
 {% for transaction in transactions %}
-<tr>
-    <td>{{ transaction.occurred_at }}</td>
-    <td class="strong">{{ transaction.name }}</td>
-    <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
-    <td class="align-center"><span
-            class="align-center {{ 'text--danger' if transaction.direction == 'OUT' else 'text--success' }}">{{
-            transaction.direction }}</span></td>
-    <td>{{ transaction.account_name }}</td>
-    <td>{{ transaction.budget_name }}</td>
-</tr>
+    <tr>
+        <td>{{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+        <td class="strong">{{ transaction.name }}</td>
+        <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
+        <td class="align-center">
+            <span class="align-center {{ 'text--danger' if transaction.direction == 'OUT' else 'text--success' }}">{{
+            transaction.direction }}</span>
+        </td>
+        <td>{{ transaction.account_name }}</td>
+        <td>{{ transaction.budget_name }}</td>
+    </tr>
 {% endfor %}

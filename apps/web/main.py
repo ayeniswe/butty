@@ -152,8 +152,11 @@ def explorer_search(
             for tx in transactions
             if query in tx.name.lower()
             or query in tx.account_name.lower()
-            or query in tx.occurred_at
-            or tx.budget_name
+            or query
+            in tx.occurred_at.strftime(
+                "%b %d, %Y %I:%M %p"
+            ).lower()  # format Jan 08, 2026 12:00 AM
+            or (tx.budget_name and query in tx.budget_name.lower())
             and query in tx.budget_name.lower()
         ]
         if query

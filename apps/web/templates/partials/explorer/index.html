@@ -80,7 +80,11 @@
                             hx-on="contextmenu: openTxnContextMenu(event, this)">
                             <div>
                                 <p class="list__title">{{ transaction.name }}</p>
-                                <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</p>
+                                <p class="list__meta">
+                                    {{ transaction.account_name }}
+                                    · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}
+                                    {% if transaction.budget_name %}· <span class="text--muted">{{ transaction.budget_name }}</span>{% endif %}
+                                </p>
                             </div>
                             <span class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
                                 {{ '$%.2f' % (transaction.amount / 100) }}
