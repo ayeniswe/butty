@@ -15,8 +15,8 @@ def db():
 
 def test_insert_account(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "12234", "APPLE", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "12234", "APPLE", "DEPOSITORY", 0, "fp-discover-1"],
     )
 
     row = db.execute("SELECT name FROM accounts").fetchone()
@@ -26,54 +26,54 @@ def test_insert_account(db: sqlite3.Connection):
 
 def test_source_enum_valid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "12234", "APPLE", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "12234", "APPLE", "DEPOSITORY", 0, "fp-source-valid-1"],
     )
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "122345", "PLAID", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "122345", "PLAID", "DEPOSITORY", 0, "fp-source-valid-2"],
     )
 
 
 def test_source_enum_invalid(db: sqlite3.Connection):
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
-            "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-            ["Discover", "12234", "EXT", "DEPOSITORY", 0],
+            "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+            ["Discover", "12234", "EXT", "DEPOSITORY", 0, "fp-source-invalid-1"],
         )
 
 
 def test_account_type_enum_valid(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "12234", "APPLE", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "12234", "APPLE", "DEPOSITORY", 0, "fp-type-valid-1"],
     )
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "122345", "PLAID", "CREDIT", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "122345", "PLAID", "CREDIT", 0, "fp-type-valid-2"],
     )
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "1223456", "PLAID", "LOAN", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "1223456", "PLAID", "LOAN", 0, "fp-type-valid-3"],
     )
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Discover", "1223457", "PLAID", "INVESTMENT", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Discover", "1223457", "PLAID", "INVESTMENT", 0, "fp-type-valid-4"],
     )
 
 
 def test_account_type_enum_invalid(db: sqlite3.Connection):
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
-            "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-            ["Discover", "12234", "EXT", "EM", 0],
+            "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+            ["Discover", "12234", "EXT", "EM", 0, "fp-type-invalid-1"],
         )
 
 
 def test_select_account_by_id(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Savings", "ext-1", "APPLE", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Savings", "ext-1", "APPLE", "DEPOSITORY", 0, "fp-select-1"],
     )
 
     row = db.execute("SELECT id FROM accounts").fetchone()
@@ -91,10 +91,10 @@ def test_select_account_by_id(db: sqlite3.Connection):
 def test_get_all_accounts(db: sqlite3.Connection):
     accounts = ["Account One", "Account Two"]
 
-    for name in accounts:
+    for idx, name in enumerate(accounts):
         db.execute(
-            "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-            [name, f"ext-{name}", "APPLE", "DEPOSITORY", 0],
+            "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+            [name, f"ext-{name}", "APPLE", "DEPOSITORY", 0, f"fp-getall-{idx+1}"],
         )
 
     rows = db.execute("SELECT name FROM accounts ORDER BY id").fetchall()
@@ -106,8 +106,8 @@ def test_get_all_accounts(db: sqlite3.Connection):
 
 def test_delete_account(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES (?,?,?,?,?)",
-        ["Temp Account", "ext-temp", "APPLE", "DEPOSITORY", 0],
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
+        ["Temp Account", "ext-temp", "APPLE", "DEPOSITORY", 0, "fp-delete-1"],
     )
 
     row = db.execute("SELECT id FROM accounts").fetchone()
@@ -125,10 +125,10 @@ def test_delete_account(db: sqlite3.Connection):
 
 def test_autoincrement_id(db: sqlite3.Connection):
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES ('A','ext-a','APPLE','DEPOSITORY',0);"
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES ('A','ext-a','APPLE','DEPOSITORY',0,'fp-auto-1');"
     )
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance) VALUES ('B','ext-b','APPLE','DEPOSITORY',0);"
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES ('B','ext-b','APPLE','DEPOSITORY',0,'fp-auto-2');"
     )
 
     ids = [r[0] for r in db.execute("SELECT id FROM accounts ORDER BY id;")]
@@ -146,8 +146,16 @@ def test_account_can_reference_plaid_account(db: sqlite3.Connection):
 
     # create account referencing plaid account
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance, plaid_id) VALUES (?,?,?,?,?,?)",
-        ("Main Checking", "ext-plaid-1", "PLAID", "DEPOSITORY", 0, plaid_id),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint, plaid_id) VALUES (?,?,?,?,?,?,?)",
+        (
+            "Main Checking",
+            "ext-plaid-1",
+            "PLAID",
+            "DEPOSITORY",
+            0,
+            "fp-auto-1",
+            plaid_id,
+        ),
     )
 
     row = db.execute("SELECT name, plaid_id FROM accounts").fetchone()
@@ -160,8 +168,16 @@ def test_account_can_reference_plaid_account(db: sqlite3.Connection):
 def test_account_rejects_invalid_plaid_id(db: sqlite3.Connection):
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
-            "INSERT INTO accounts (name, external_id, source, account_type, balance, plaid_id) VALUES (?,?,?,?,?,?)",
-            ("Invalid Account", "ext-invalid", "APPLE", "DEPOSITORY", 0, 999),
+            "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint, plaid_id) VALUES (?,?,?,?,?,?,?)",
+            (
+                "Invalid Account",
+                "ext-invalid",
+                "APPLE",
+                "DEPOSITORY",
+                "fp-auto-1",
+                0,
+                999,
+            ),
         )
 
 
@@ -174,8 +190,8 @@ def test_cascade_delete_plaid_account_removes_accounts(db: sqlite3.Connection):
     plaid_id = db.execute("SELECT id FROM plaid_accounts").fetchone()[0]
 
     db.execute(
-        "INSERT INTO accounts (name, external_id, source, account_type, balance, plaid_id) VALUES (?, ?, ?, ?, ?, ?)",
-        ("Savings Account", "1234", "APPLE", "DEPOSITORY", 0, plaid_id),
+        "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint, plaid_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("Savings Account", "1234", "APPLE", "DEPOSITORY", 0, "fp-auto-1", plaid_id),
     )
 
     # delete plaid account
