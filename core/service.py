@@ -17,7 +17,6 @@ from core.utils import (
     build_fingerprint,
     cents_to_dollars,
     derive_direction,
-    dollars_to_cents,
 )
 
 
@@ -87,6 +86,9 @@ class Service:
         budget = self.store.select_budget(id)
         return budget
 
+    def get_transaction(self, id: int):
+        return self.store.select_transaction(id)
+
     def edit_budget_name(self, id: int, name: str):
         budget = self.store.select_budget(id)
         self.store.update_budget(
@@ -149,7 +151,27 @@ class Service:
         self.store.update_transaction_note(id, note)
 
     def unassign_transaction_to_budget(self, budget_id: int, transaction_id: int):
+        if budget_id is None:
+            budget_id = self.store.select_budget_id_for_transaction(transaction_id)
+
+        if budget_id is None:
+            return False
+
         self.store.delete_budget_transaction(budget_id, transaction_id)
+        return True
+
+    def assign_transaction_to_budget(
+        self, budget_id: int, transaction_id: int, month: int, year: int
+    ):
+        txn = self.get_transaction(transaction_id)
+        occurred_at = txn.occurred_at
+        if isinstance(occurred_at, str):
+            occurred_at = datetime.fromisoformat(occurred_at)
+
+        if occurred_at.month != month or occurred_at.year != year:
+            raise ValueError("Transaction falls outside the selected month and year")
+
+        self.store.insert_budget_transaction(budget_id, transaction_id)
 
     def sync_all_transactions(self):
         self.__sync_plaid_transactions()
@@ -202,38 +224,41 @@ class Service:
         if transactions:
             # Must use first trans to get account since no
             # easy way to get accounts
-            GENERIC_NAME = "Apple Card"
+
             transaction = transactions[0]
-            account_id = self.store.insert_account(
-                PartialAccount(
-                    transaction.account_id,
-                    TransactionSource.APPLE,
-                    TransactionType.CREDIT,
-                    GENERIC_NAME,
-                    0,  # TODO add the correct balance
-                    Service.__build_account_fingerprint(
-                        GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
-                    ),  # TODO fix for correctneess data
-                )
+            GENERIC_NAME = "Apple Card"
+            fingerprint = Service.__build_account_fingerprint(
+                GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
             )
-            name = transaction.name
-            amount = transaction.amount
-            direction = transaction.direction
-            date = transaction.date
+            account_id = self.store.account_exists_by_fingerprint(fingerprint)
+
+            if not account_id:
+                account_id = self.store.insert_account(
+                    PartialAccount(
+                        transaction.account_id,
+                        TransactionSource.APPLE,
+                        TransactionType.CREDIT,
+                        GENERIC_NAME,
+                        0,  # TODO add the correct balance
+                    )
+                )
             for transaction in transactions:
                 # NOTE
                 # All transactions should be stored as cents
                 self.store.insert_transaction(
                     PartialTransaction(
-                        name,
-                        dollars_to_cents(amount),
-                        direction,
+                        transaction.name,
+                        transaction.amount,
+                        transaction.direction,
                         account_id,
                         Service.__build_transaction_fingerprint(
-                            name, amount, direction, date
+                            transaction.name,
+                            transaction.amount,
+                            transaction.direction,
+                            transaction.date,
                         ),
                         external_id=transaction.id,
-                        occurred_at=date,
+                        occurred_at=transaction.date,
                     )
                 )
 

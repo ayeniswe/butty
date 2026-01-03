@@ -73,7 +73,11 @@
             <ul class="list list--transactions">
                 {% if recent_transactions and recent_transactions|length > 0 %}
                     {% for transaction in recent_transactions %}
-                        <li hx-on="contextmenu: event.preventDefault(); event.stopPropagation(); const menu = document.getElementById('txn-context-menu'); menu.style.top = event.clientY + 'px'; menu.style.left = event.clientX + 'px'; menu.dataset.txnId = '{{ transaction.id }}'; menu.style.display = 'block'; menu.classList.add('is-visible');">
+                        <li data-txn-id="{{ transaction.id }}"
+                            data-txn-occurred-at="{{ transaction.occurred_at.isoformat() if transaction.occurred_at.__class__.__name__ != 'str' else transaction.occurred_at }}"
+                            data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
+                            data-txn-note="{{ transaction.note | default("") }}"
+                            hx-on="contextmenu: openTxnContextMenu(event, this)">
                             <div>
                                 <p class="list__title">{{ transaction.name }}</p>
                                 <p class="list__meta">{{ transaction.account_name }} · {{ transaction.occurred_at }}</p>
@@ -153,7 +157,11 @@
                         {% if transactions and transactions|length > 0 %}
                             {% for transaction in transactions %}
                                 <tr class="explorer-row"
-                                    hx-on="contextmenu: event.preventDefault(); event.stopPropagation(); const menu = document.getElementById('txn-context-menu'); menu.style.top = event.clientY + 'px'; menu.style.left = event.clientX + 'px'; menu.dataset.txnId = '{{ transaction.id }}'; menu.style.display = 'block'; menu.classList.add('is-visible');">
+                                    data-txn-id="{{ transaction.id }}"
+                                    data-txn-occurred-at="{{ transaction.occurred_at.isoformat() if transaction.occurred_at.__class__.__name__ != 'str' else transaction.occurred_at }}"
+                                    data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
+                                    data-txn-note="{{ transaction.note | default("") }}"
+                                    hx-on="contextmenu: openTxnContextMenu(event, this)">
                                     <td>{{ transaction.occurred_at }}</td>
                                     <td class="strong">{{ transaction.name }}</td>
                                     <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
@@ -183,6 +191,8 @@
         <!-- Context menu for transaction rows -->
         <div id="txn-context-menu"
              class="context-menu"
+             data-current-month="{{ current_month }}"
+             data-current-year="{{ year if year is not none else now_year }}"
              style="position: fixed;
                     z-index: 9999;
                     display: none">
@@ -192,6 +202,17 @@
                     role="button"
                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=budgets]').style.display = 'block'; ">
                     Assign budget
+                </li>
+                <li class="context-menu__item danger"
+                    data-action="remove-budget"
+                    role="button"
+                    hx-delete="/transactions/budget"
+                    hx-target="#explorer-history"
+                    hx-swap="innerHTML"
+                    hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); if (!Number(menu.dataset.txnBudgeted)) { event.preventDefault(); alert('This transaction is not assigned to a budget.'); return; } ; htmx:afterRequest: const menu = document.getElementById('txn-context-menu'); menu.classList.remove('is-visible'); menu.style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';"
+                    hx-confirm="Remove this transaction from its assigned budget? This won’t delete the transaction itself.">
+                    Remove budget
                 </li>
                 <li class="context-menu__item"
                     role="button"
@@ -206,13 +227,7 @@
                      hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=budgets]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
                     ← Assign budget
                 </div>
-                <ul class="context-menu__list context-menu__list--scroll">
-                    {% for budget in budgets %}
-                        <li class="context-menu__item"
-                            role="button"
-                            data-budget-id="{{ budget.id }}">{{ budget.name }}</li>
-                    {% endfor %}
-                </ul>
+                {% include "partials/explorer/context_menu_budgets.html" %}
             </div>
             <!-- NOTE VIEW -->
             <div class="context-menu__view" data-view="note" style="display:none;">
@@ -227,13 +242,15 @@
                               rows="4"></textarea>
                     <div class="context-menu__note-actions">
                         <button class="pill pill--xsmall pill--secondary"
-                                hx-on=" const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                                hx-on="click: const menu = document.getElementById('txn-context-menu'); const input = menu.querySelector('.context-menu__note-input'); input.value = menu.dataset.txnNote || ''; menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';">
                             Cancel
                         </button>
                         <button class="pill pill--xsmall pill--primary"
                                 hx-post="/transactions/note"
-                                hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, note: document.querySelector(".context-menu__note-input").value }'
-                                hx-on=" const menu = document.getElementById('txn-context-menu'); menu.classList.remove('is-visible'); ">
+                                hx-target="#explorer-history"
+                                hx-swap="innerHTML"
+                                hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, note: document.querySelector(".context-menu__note-input").value, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
+                                hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.dataset.txnNote = document.querySelector('.context-menu__note-input').value; menu.classList.remove('is-visible'); menu.style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; menu.querySelector('[data-view=note]').style.display = 'none';">
                             Save
                         </button>
                     </div>

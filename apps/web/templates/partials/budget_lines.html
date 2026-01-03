@@ -49,32 +49,34 @@
         </div>
     {% endif %}
 </header>
-<form id="budget-summary-create"
-      class="budget-summary"
-      hx-post="/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
-      hx-target="#budget-lines-container"
-      hx-swap="innerHTML">
-    <!-- Name -->
-    <div class="budget-summary__field">
-        <label>Name</label>
-        <input name="name" placeholder="Name" />
-    </div>
-    <!-- Allocated -->
-    <div class="budget-summary__field">
-        <label>Allocated</label>
-        <input name="allocated" inputmode="decimal" placeholder="0.00" />
-    </div>
-    <!-- Spent -->
-    <div class="budget-summary__field">
-        <label>Spent</label>
-        <input name="spent" inputmode="decimal" disabled placeholder="0.00" />
-    </div>
-    <button type="submit"
-            class="budget-list-save pill pill--xsmall pill--secondary">Save</button>
-</form>
+{% if not readonly %}
+    <form id="budget-summary-create"
+          class="budget-summary"
+          hx-post="/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
+          hx-target="#budget-lines-container"
+          hx-swap="innerHTML">
+        <!-- Name -->
+        <div class="budget-summary__field">
+            <label>Name</label>
+            <input name="name" placeholder="Name" />
+        </div>
+        <!-- Allocated -->
+        <div class="budget-summary__field">
+            <label>Allocated</label>
+            <input name="allocated" inputmode="decimal" placeholder="0.00" />
+        </div>
+        <!-- Spent -->
+        <div class="budget-summary__field">
+            <label>Spent</label>
+            <input name="spent" inputmode="decimal" disabled placeholder="0.00" />
+        </div>
+        <button type="submit"
+                class="budget-list-save pill pill--xsmall pill--secondary">Save</button>
+    </form>
+{% endif %}
 <ul id="budget-list-items"
     class="budget-list__items budget-list__items--scroll"
-    hx-on=" scroll: const form = document.querySelector('#budget-summary-create'); const btn  = document.querySelector('.budget-list-create'); form.classList.remove('is-active'); btn.classList.add('is-active'); ">
+    hx-on=" scroll: const form = document.querySelector('#budget-summary-create'); const btn  = document.querySelector('.budget-list-create'); if (!form || !btn) { return; } form.classList.remove('is-active'); btn.classList.add('is-active'); ">
     {% if budgets and budgets|length > 0 %}
         {% for item in budgets %}
             {% if item.amount_allocated and item.amount_allocated > 0 %}
@@ -112,9 +114,24 @@
                 <svg class="icon icon--large" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
-                <p class="budget-item__empty-title">No budget items yet</p>
-                <p class="budget-item__empty-subtitle">Add your first budget item to start tracking spending.</p>
+                <p class="budget-item__empty-title">
+                    {% if readonly %}
+                        This budget has no items in it
+                    {% else %}
+                        No budget items yet
+                    {% endif %}
+                </p>
+                <p class="budget-item__empty-subtitle">
+                    {% if readonly %}
+                        You can't modify past budgets, but you can review their details here.
+                    {% else %}
+                        Add your first budget item to start tracking spending.
+                    {% endif %}
+                </p>
             </div>
         </li>
     {% endif %}
 </ul>
+{# <div hx-trigger="load"
+     hx-on="load: htmx.trigger(document.body, 'refresh-context-budgets')"
+     style="display: none"></div> #}

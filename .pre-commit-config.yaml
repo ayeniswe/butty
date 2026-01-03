@@ -12,6 +12,7 @@ repos:
         args:
           - --profile=jinja
           - --configuration=pyproject.toml
+          - --ignore=H021
       - id: djlint-reformat
         args:
           - --profile=jinja

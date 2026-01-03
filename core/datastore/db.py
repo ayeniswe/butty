@@ -157,6 +157,7 @@ class Sqlite3(DataStore):
                     self.budgets,
                     self.budgets_transactions.c.budget_id == self.budgets.c.id,
                 )
+                .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
 
     def filter_transactions(
@@ -250,15 +251,15 @@ class Sqlite3(DataStore):
             return conn.execute(select(self.plaid_accounts)).fetchall()
 
     # MARK: - Accounts
-    def account_exists_by_fingerprint(self, fingerprint: str) -> bool:
+    def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:
         with self.engine.begin() as conn:
-            result = conn.execute(
+            row = conn.execute(
                 select(self.accounts.c.id)
                 .where(self.accounts.c.fingerprint == fingerprint)
                 .limit(1)
             ).first()
 
-            return result is not None
+            return row.id if row else None
 
     def insert_account(self, obj: PartialAccount) -> int:
         values = {
@@ -310,9 +311,9 @@ class Sqlite3(DataStore):
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
         with self.engine.begin() as conn:
             conn.execute(
-                insert(self.budgets_transactions).values(
-                    transaction_id=transaction_id, budget_id=budget_id
-                )
+                insert(self.budgets_transactions)
+                .values(transaction_id=transaction_id, budget_id=budget_id)
+                .prefix_with("OR IGNORE")
             )
 
     def delete_budget_transaction(self, budget_id: int, transaction_id: int):
@@ -341,3 +342,13 @@ class Sqlite3(DataStore):
                 .where(self.budgets_transactions.c.budget_id == budget_id)
                 .order_by(self.transactions.c.occurred_at.desc())
             ).fetchall()
+
+    def select_budget_id_for_transaction(self, transaction_id: int) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.budgets_transactions.c.budget_id)
+                .where(self.budgets_transactions.c.transaction_id == transaction_id)
+                .limit(1)
+            ).first()
+
+            return row.budget_id if row else None

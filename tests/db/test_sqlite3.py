@@ -913,7 +913,7 @@ def test_account_exists_by_fingerprint(db: Sqlite3):
     )
 
     # should exist
-    assert db.account_exists_by_fingerprint("fp-exists-1") is True
+    assert db.account_exists_by_fingerprint("fp-exists-1") == 1
 
     # should not exist
-    assert db.account_exists_by_fingerprint("fp-does-not-exist") is False
+    assert db.account_exists_by_fingerprint("fp-does-not-exist") is None
