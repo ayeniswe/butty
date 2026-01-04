@@ -38,8 +38,7 @@
             <button class="budget-list-create is-active pill pill--xsmall pill--secondary"
                     hx-post="/budgets/copy?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
                     hx-target="#budget-lines-container"
-                    hx-swap="innerHTML"
-                    hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')">
+                    hx-swap="innerHTML">
                 <span class="pill__content">
                     <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -55,8 +54,7 @@
           class="budget-summary"
           hx-post="/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
           hx-target="#budget-lines-container"
-          hx-swap="innerHTML"
-          hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')">
+          hx-swap="innerHTML">
         <!-- Name -->
         <div class="budget-summary__field">
             <label>Name</label>
