@@ -907,32 +907,12 @@ textarea[readonly] {
   color: var(--color-danger);
 }
 
-.sync-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5.6px;
-  margin-left: 8px;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
+.icon--sync {
+  transition: transform 0.2s ease;
 }
 
-.sync-indicator.htmx-request {
-  opacity: 1;
-  visibility: visible;
-}
-
-.sync-indicator__spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  animation: spin 1s linear infinite;
-}
-
-.sync-indicator__text {
-  font-size: 12.8px;
+#explorer-sync-button.htmx-request .icon--sync {
+  animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {
