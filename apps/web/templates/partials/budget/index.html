@@ -64,7 +64,8 @@
             hx-swap="innerHTML">Tags</h4>
     </div>
     <div class="budget-item-details-container"
-         id="budget-item-details-container"></div>
+         id="budget-item-details-container"
+         hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')"></div>
     <button class="pill pill--flex pill--danger"
             hx-delete="/budgets/{{ id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
             hx-target="#budget-lines-container"

@@ -38,7 +38,7 @@
                          hx-trigger="load"
                          hx-target="#budget-lines-container"
                          hx-swap="innerHTML"
-                         hx-on=" click: const form = document.querySelector('#budget-summary-create'); const button = document.querySelector('.budget-list-create'); if (form && button) { if (form.contains(event.target) || event.target.closest('.budget-list-create')) return; form.classList.remove('is-active'); button.classList.add('is-active'); } ">
+                         hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer'); click: const form = document.querySelector('#budget-summary-create'); const button = document.querySelector('.budget-list-create'); if (form && button) { if (form.contains(event.target) || event.target.closest('.budget-list-create')) return; form.classList.remove('is-active'); button.classList.add('is-active'); } ">
                 </section>
             </div>
             <div class="detail-panel">
@@ -49,7 +49,7 @@
                 <aside class="explorer"
                        id="explorer-history"
                        hx-get="/explorer"
-                       hx-trigger="load"
+                       hx-trigger="load, refresh-explorer from:body"
                        hx-target="#explorer-history"
                        hx-swap="innerHTML">
                     {% include "partials/explorer/index.html" %}

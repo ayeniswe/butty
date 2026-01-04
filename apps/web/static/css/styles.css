@@ -907,6 +907,20 @@ textarea[readonly] {
   color: var(--color-danger);
 }
 
+.icon--sync {
+  transition: transform 0.2s ease;
+}
+
+.icon--sync.htmx-request {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
 .explorer header {
   display: flex;

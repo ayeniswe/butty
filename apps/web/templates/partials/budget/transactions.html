@@ -13,7 +13,7 @@
                 </span>
             </button>
             <div class="transaction-create">
-                <form hx-on="click:event.stopPropagation()"
+                <form hx-on="click:event.stopPropagation();"
                       hx-post="/budgets/{{ id }}/transactions"
                       hx-target="#budget-item-details-container"
                       hx-include="this">
@@ -59,7 +59,7 @@
                 </div>
                 <button class="budget-transaction-delete icon-button icon-button--danger"
                         {% if readonly %}disabled{% endif %}
-                        hx-on="click:event.stopPropagation()"
+                        hx-on="click:event.stopPropagation();"
                         aria-label="Delete transaction"
                         hx-delete="/budgets/{{ id }}/transactions/{{ item.id }}"
                         hx-target="#budget-item-details-container"
