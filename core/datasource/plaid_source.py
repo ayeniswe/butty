@@ -1,19 +1,33 @@
 import os
 
-from plaid import Environment
-from plaid.api.plaid_api import PlaidApi
-from plaid.api_client import ApiClient
-from plaid.configuration import Configuration
-from plaid.model.accounts_get_request import AccountsGetRequest
-from plaid.model.country_code import CountryCode
-from plaid.model.item_public_token_exchange_request import (
-    ItemPublicTokenExchangeRequest,
-)
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.products import Products
-from plaid.model.transaction import Transaction
-from plaid.model.transactions_sync_request import TransactionsSyncRequest
+try:  # pragma: no cover - import guard exercised by tests
+    from plaid import Environment
+    from plaid.api.plaid_api import PlaidApi
+    from plaid.api_client import ApiClient
+    from plaid.configuration import Configuration
+    from plaid.model.accounts_get_request import AccountsGetRequest
+    from plaid.model.country_code import CountryCode
+    from plaid.model.item_public_token_exchange_request import (
+        ItemPublicTokenExchangeRequest,
+    )
+    from plaid.model.link_token_create_request import LinkTokenCreateRequest
+    from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+    from plaid.model.products import Products
+    from plaid.model.transaction import Transaction
+    from plaid.model.transactions_sync_request import TransactionsSyncRequest
+except ModuleNotFoundError:  # pragma: no cover - exercised by tests
+    Environment = None
+    PlaidApi = None
+    ApiClient = None
+    Configuration = None
+    AccountsGetRequest = None
+    CountryCode = None
+    ItemPublicTokenExchangeRequest = None
+    LinkTokenCreateRequest = None
+    LinkTokenCreateRequestUser = None
+    Products = None
+    TransactionsSyncRequest = None
+    Transaction = type("Transaction", (), {})
 
 from core.datasource.model import PlaidAccountBase
 from core.utils import build_fingerprint
@@ -21,6 +35,23 @@ from core.utils import build_fingerprint
 
 class Plaid:
     def __init__(self):
+        if None in (
+            Environment,
+            PlaidApi,
+            ApiClient,
+            Configuration,
+            AccountsGetRequest,
+            CountryCode,
+            ItemPublicTokenExchangeRequest,
+            LinkTokenCreateRequest,
+            LinkTokenCreateRequestUser,
+            Products,
+            TransactionsSyncRequest,
+        ):
+            raise ImportError(
+                "Plaid SDK is required. Install the 'plaid-python' package to use this datasource."
+            )
+
         isProd = os.environ["ENV"] == "prod"
         config = Configuration(
             host=Environment.Production if isProd else Environment.Sandbox,
