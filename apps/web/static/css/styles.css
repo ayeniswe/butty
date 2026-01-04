@@ -911,7 +911,7 @@ textarea[readonly] {
   transition: transform 0.2s ease;
 }
 
-#explorer-sync-button.htmx-request .icon--sync {
+.icon--sync.htmx-request {
   animation: spin 0.9s linear infinite;
 }
 

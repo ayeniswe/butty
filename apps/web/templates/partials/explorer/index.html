@@ -30,9 +30,10 @@
                 hx-get="/transactions/sync"
                 hx-target="#explorer-history"
                 hx-swap="innerHTML"
-                hx-indicator="#explorer-sync-button">
+                hx-indicator="#explorer-sync-icon">
             <span class="pill__content">
-                <svg class="icon icon--spacing icon--small icon--sync"
+                <svg id="explorer-sync-icon"
+                     class="icon icon--spacing icon--small icon--sync"
                      xmlns="http://www.w3.org/2000/svg"
                      width="16"
                      height="16"
