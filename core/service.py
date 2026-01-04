@@ -240,6 +240,7 @@ class Service:
                         TransactionType.CREDIT,
                         GENERIC_NAME,
                         0,  # TODO add the correct balance
+                        fingerprint,
                     )
                 )
             for transaction in transactions:
