@@ -211,6 +211,13 @@ def patch_plaid_dependencies(monkeypatch):
     monkeypatch.setattr(plaid_source, "AccountsGetRequest", DummyAccountsGetRequest)
 
 
+def test_plaid_requires_sdk(monkeypatch):
+    monkeypatch.setattr(plaid_source, "Environment", None)
+
+    with pytest.raises(ImportError):
+        plaid_source.Plaid()
+
+
 def test_create_link_builds_link_token():
     plaid = plaid_source.Plaid()
 
