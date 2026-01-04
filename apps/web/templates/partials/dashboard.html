@@ -49,7 +49,7 @@
                 <aside class="explorer"
                        id="explorer-history"
                        hx-get="/explorer"
-                       hx-trigger="load"
+                       hx-trigger="load, refresh-explorer from:body"
                        hx-target="#explorer-history"
                        hx-swap="innerHTML">
                     {% include "partials/explorer/index.html" %}

@@ -13,7 +13,7 @@
                 </span>
             </button>
             <div class="transaction-create">
-                <form hx-on="click:event.stopPropagation()"
+                <form hx-on="click:event.stopPropagation(); htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')"
                       hx-post="/budgets/{{ id }}/transactions"
                       hx-target="#budget-item-details-container"
                       hx-include="this">
@@ -59,7 +59,7 @@
                 </div>
                 <button class="budget-transaction-delete icon-button icon-button--danger"
                         {% if readonly %}disabled{% endif %}
-                        hx-on="click:event.stopPropagation()"
+                        hx-on="click:event.stopPropagation(); htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')"
                         aria-label="Delete transaction"
                         hx-delete="/budgets/{{ id }}/transactions/{{ item.id }}"
                         hx-target="#budget-item-details-container"
@@ -79,7 +79,8 @@
                       hx-trigger="blur"
                       name="note"
                       hx-target="#budget-item-details-container"
-                      hx-include="this">{{ item.note }}</textarea>
+                      hx-include="this"
+                      hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')">{{ item.note }}</textarea>
         </div>
     {% endfor %}
 </ul>

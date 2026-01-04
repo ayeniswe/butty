@@ -28,7 +28,8 @@
         <button class="pill pill--xsmall pill--accent"
                 hx-get="/transactions/sync"
                 hx-target="#explorer-history"
-                hx-swap="innerHTML">
+                hx-swap="innerHTML"
+                hx-indicator="#explorer-sync-indicator">
             <span class="pill__content">
                 <svg class="icon icon--spacing icon--small"
                      xmlns="http://www.w3.org/2000/svg"
@@ -46,7 +47,11 @@
                     <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
                     <path d="M21 21v-5h-5" />
                 </svg>
-                Sync
+                <span>Sync</span>
+                <span id="explorer-sync-indicator" class="sync-indicator htmx-indicator">
+                    <span class="sync-indicator__spinner" aria-hidden="true"></span>
+                    <span class="sync-indicator__text">Syncing…</span>
+                </span>
             </span>
         </button>
         <button class="pill pill--xsmall pill--secondary"

@@ -68,6 +68,7 @@
     <button class="pill pill--flex pill--danger"
             hx-delete="/budgets/{{ id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
             hx-target="#budget-lines-container"
+            hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')"
             {% if readonly %}disabled{% endif %}
             hx-confirm="This will permanently delete this budget and its associations. This action cannot be undone. Are you sure?">
         <span class="pill__content">Delete</span>
