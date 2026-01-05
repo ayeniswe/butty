@@ -655,4 +655,4 @@ if __name__ == "__main__":
 
     dotenv.load_dotenv()
     app.state.database_path = resolve_db_path(args.database_path)
-    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=8001, reload=True, workers=1)
+    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=8001, reload=False, workers=1)
