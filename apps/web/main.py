@@ -1,8 +1,10 @@
 # MARK: Imports
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
+import os
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -16,14 +18,29 @@ from core.utils import cents_to_dollars, derive_month_context
 
 # MARK: App Setup & Lifespan
 
+DEFAULT_DB_NAME = "butty.sqlite"
+
+
+def resolve_db_path(db_path: str | Path | None = None) -> Path:
+    env_path = os.getenv("BUTTY_DB_PATH")
+    path_to_use = Path(db_path or env_path) if db_path or env_path else None
+
+    if path_to_use:
+        return path_to_use.expanduser().resolve()
+
+    project_root = Path(__file__).resolve().parents[2]
+    return (project_root / DEFAULT_DB_NAME).resolve()
+
 
 @asynccontextmanager
 async def startup(app: FastAPI):
-    app.state.service = Service(Sqlite3("butty.sqlite"))
+    db_path = resolve_db_path(getattr(app.state, "database_path", None))
+    app.state.service = Service(Sqlite3(db_path))
     yield
 
 
 app = FastAPI(title="Budget Dashboard", lifespan=startup)
+app.state.database_path = resolve_db_path()
 
 # Routers
 root_router = APIRouter()
@@ -620,7 +637,21 @@ app.include_router(transactions_router)
 
 
 if __name__ == "__main__":
+    import argparse
+
     import dotenv
 
+    parser = argparse.ArgumentParser(description="Run the Butty web server.")
+    parser.add_argument(
+        "--db-path",
+        dest="database_path",
+        help=(
+            "Path to the SQLite database file. "
+            "Defaults to BUTTY_DB_PATH env var or project root/butty.sqlite."
+        ),
+    )
+    args = parser.parse_args()
+
     dotenv.load_dotenv()
+    app.state.database_path = resolve_db_path(args.database_path)
     uvicorn.run("apps.web.main:app", host="0.0.0.0", port=8001, reload=True, workers=1)
