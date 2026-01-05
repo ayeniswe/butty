@@ -20,13 +20,14 @@ from core.utils import cents_to_dollars, derive_month_context
 
 DEFAULT_DB_NAME = "butty.sqlite"
 
-
 def resolve_db_path(db_path: str | Path | None = None) -> Path:
     env_path = os.getenv("BUTTY_DB_PATH")
-    path_to_use = Path(db_path or env_path) if db_path or env_path else None
+    raw = db_path or env_path
 
-    if path_to_use:
-        return path_to_use.expanduser().resolve()
+    if raw:
+        path = Path(raw).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path.resolve()
 
     project_root = Path(__file__).resolve().parents[2]
     return (project_root / DEFAULT_DB_NAME).resolve()
