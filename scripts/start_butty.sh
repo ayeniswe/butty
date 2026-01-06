@@ -34,6 +34,12 @@ fi
 DB_PATH="$APP_DATA_DIR/$DB_NAME"
 LOGFILE="$APP_DATA_DIR/logs/web.log"
 
+# Always start fresh in TEST_MODE
+if [[ "$TEST_MODE" == "1" && -f "$DB_PATH" ]]; then
+  echo "🧹 Removing existing test database"
+  rm -f "$DB_PATH"
+fi
+
 # -----------------------
 # Python environment bootstrap
 # -----------------------
@@ -106,8 +112,27 @@ export BUTTY_TEST_MODE="$TEST_MODE"
 nohup "$PYTHON" -m apps.web.main \
   > "$LOGFILE" 2>&1 &
 
+SERVER_PID=$!
+
+# Seed test database
+if [[ "$TEST_MODE" == "1" ]]; then
+  echo "🌱 Seeding test database from schema/seed.sql"
+
+  # Wait briefly for DB to be created
+  for _ in {1..10}; do
+    [[ -f "$DB_PATH" ]] && break
+    sleep 0.3
+  done
+
+  if [[ -f "$WORKDIR/schema/seed.sql" ]]; then
+    sqlite3 "$DB_PATH" < "$WORKDIR/schema/seed.sql"
+  else
+    echo "⚠️  schema/seed.sql not found"
+  fi
+fi
+
 echo "✅ $APP_NAME started"
-echo "   PID:  $!"
+echo "   PID:  $SERVER_PID"
 echo "   Port: $PORT"
 echo "   Mode: $([[ "$TEST_MODE" == "1" ]] && echo "TEST" || echo "NORMAL")"
 echo "   DB:   $DB_PATH"

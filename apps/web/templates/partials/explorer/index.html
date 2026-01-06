@@ -80,18 +80,25 @@
                             data-txn-occurred-at="{{ transaction.occurred_at }}"
                             data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
                             data-txn-note="{{ transaction.note | default("") }}"
-                            hx-on="contextmenu: openTxnContextMenu(event, this)">
-                            <div>
-                                <p class="list__title">{{ transaction.name }}</p>
-                                <p class="list__meta">
-                                    {{ transaction.account_name }}
-                                    · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}
-                                    {% if transaction.budget_name %}· <span class="text--muted">{{ transaction.budget_name }}</span>{% endif %}
-                                </p>
+                            hx-on="contextmenu: openTxnContextMenu(event, this);">
+                            <div class="txn-row">
+                                <div class="txn-row__main">
+                                    <p class="list__title">{{ transaction.name }}</p>
+                                    <p class="list__meta">
+                                        {{ transaction.account_name }}
+                                        · {{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}
+                                        {% if transaction.budget_name %}· <span class="text--muted">{{ transaction.budget_name }}</span>{% endif %}
+                                    </p>
+                                </div>
+                                <span class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
+                                    {{ '$%.2f' % (transaction.amount / 100) }}
+                                </span>
+                                <button class="pill pill--ghost pill--xsmall"
+                                        aria-label="Transaction actions"
+                                        hx-on="click: openTxnContextMenu(event, this.closest('[data-txn-id]'))">
+                                    ⋯
+                                </button>
                             </div>
-                            <span class="list__amount {{ 'list__amount--negative' if transaction.direction == 'OUT' else 'list__amount--positive' }}">
-                                {{ '$%.2f' % (transaction.amount / 100) }}
-                            </span>
                         </li>
                     {% endfor %}
                 {% else %}
@@ -158,6 +165,8 @@
                             <th class="align-center">Type</th>
                             <th>Account</th>
                             <th>Budget</th>
+                            <th></th>
+                            {# allows ... for more detail #}
                         </tr>
                     </thead>
                     <tbody id="explorer-table-rows-container">
@@ -179,11 +188,18 @@
                                     </td>
                                     <td>{{ transaction.account_name }}</td>
                                     <td>{{ transaction.budget_name }}</td>
+                                    <td class="align-center">
+                                        <button class="pill pill--ghost pill--xsmall"
+                                                aria-label="Transaction actions"
+                                                hx-on="click: openTxnContextMenu(event, this.closest('[data-txn-id]'))">
+                                            ⋯
+                                        </button>
+                                    </td>
                                 </tr>
                             {% endfor %}
                         {% else %}
                             <tr class="table__empty">
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="table__empty-content">
                                         <strong>No transactions yet</strong>
                                         <span>Your activity will appear here once you add or sync transactions.</span>

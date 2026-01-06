@@ -178,6 +178,7 @@ textarea[readonly] {
   min-height: 0px;
 }
 
+
 .budget-list {
   background: var(--color-bg-surface);
   border-radius: var(--radius);
@@ -801,6 +802,7 @@ textarea[readonly] {
 
 /* Table */
 .explorer-search__table table {
+  user-select: none;
   width: 100%;
   border-collapse: collapse;
 }
@@ -1294,8 +1296,7 @@ textarea[readonly] {
   cursor: pointer;
   user-select: none;
 
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text-primary) 10%, transparent);
 }
 
 .context-menu__header:hover {

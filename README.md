@@ -2,7 +2,8 @@
 
 ## Prerequisites
 - Python 3.12+
-- `git`
+- git
+- sqlite3
 
 ## Quickstart
 1. **Clone and enter the project**
