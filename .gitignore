@@ -8,3 +8,4 @@ coverage.xml
 *.sqlite*
 .ruff_cache
 seed.sql
+*.log

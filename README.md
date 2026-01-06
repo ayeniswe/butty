@@ -1,10 +1,7 @@
 # Butty
 
-Budget dashboard built with FastAPI, SQLAlchemy, and Jinja2 templates. This guide helps you get the project running quickly and points to common pitfalls.
-
 ## Prerequisites
 - Python 3.12+
-- SQLite (included with Python)
 - `git`
 
 ## Quickstart
@@ -13,25 +10,27 @@ Budget dashboard built with FastAPI, SQLAlchemy, and Jinja2 templates. This guid
    git clone <your-fork-url> && cd butty
    ```
 
-2. **Create and activate a virtual environment**
+2. **Start the server (auto-bootstraps venv & deps)**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate
+   ./scripts/start_butty.sh
    ```
 
-3. **Install dependencies**
-   ```bash
-   pip install -e .
-   # For local development extras (linting, tests, formatting)
-   pip install -e '.[dev]'
-   ```
+   - Automatically creates `.venv` if missing
+   - Installs dependencies from `pyproject.toml`
+   - Starts the FastAPI server
+   - Creates the database if needed
 
-4. **Run the web app**
+3. **(Optional) Run in test mode**
    ```bash
-   uvicorn apps.web.main:app --reload
+   TEST_MODE=1 ./scripts/start_butty.sh
    ```
-   - The server starts on `http://127.0.0.1:8000`.
-   - A SQLite database is created automatically at `<repo>/butty.sqlite`. Override the location with `BUTTY_DB_PATH=/custom/path/butty.sqlite`.
+   - Uses an isolated temporary database (`dbtemp.sqlite`)
+   - Safe for demos, testing, or experiments
+
+4. **Stop the server**
+   ```bash
+   ./scripts/stop_butty.sh
+   ```
 
 5. **Explore the UI**
    Open your browser to `http://127.0.0.1:8000/` to see the dashboard, budgets, and transactions. Static assets and templates live under `apps/web/`.
@@ -59,7 +58,17 @@ Budget dashboard built with FastAPI, SQLAlchemy, and Jinja2 templates. This guid
 
 ## FAQ
 **Where does the database live?**
-The default database is `butty.sqlite` in the project root. Set `BUTTY_DB_PATH` before starting Uvicorn to store it elsewhere.
+The database location depends on the mode and OS:
+
+- **Normal mode**
+  - macOS: `~/Library/Application Support/butty/db.sqlite`
+  - Linux: `~/.local/share/butty/db.sqlite`
+
+- **Test mode**
+  - Uses `dbtemp.sqlite` in the same directory
+  - Activated via `TEST_MODE=1`
+
+You can override the location by setting `BUTTY_DB_PATH`.
 
 **Tables are missing or the DB is empty. What now?**
 The FastAPI startup process executes SQL files in `schema/` automatically. Remove any existing DB file and restart the server to recreate tables.

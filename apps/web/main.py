@@ -1,10 +1,10 @@
 # MARK: Imports
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
-import os
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -18,19 +18,14 @@ from core.utils import cents_to_dollars, derive_month_context
 
 # MARK: App Setup & Lifespan
 
-DEFAULT_DB_NAME = "butty.sqlite"
 
-def resolve_db_path(db_path: str | Path | None = None) -> Path:
+def resolve_db_path(db_path: Path | None = None) -> Path:
     env_path = os.getenv("BUTTY_DB_PATH")
     raw = db_path or env_path
 
-    if raw:
-        path = Path(raw).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path.resolve()
-
-    project_root = Path(__file__).resolve().parents[2]
-    return (project_root / DEFAULT_DB_NAME).resolve()
+    path = Path(raw).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
 
 
 @asynccontextmanager
@@ -645,7 +640,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the Butty web server.")
     parser.add_argument(
         "--db-path",
-        dest="database_path",
+        default=Path.cwd() / "butty.sqlite",
         help=(
             "Path to the SQLite database file. "
             "Defaults to BUTTY_DB_PATH env var or project root/butty.sqlite."
@@ -654,5 +649,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dotenv.load_dotenv()
-    app.state.database_path = resolve_db_path(args.database_path)
-    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=8001, reload=False, workers=1)
+    app.state.database_path = resolve_db_path(args.db_path)
+    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=os.getenv("PORT", 8001))

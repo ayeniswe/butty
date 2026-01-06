@@ -3,7 +3,16 @@ name = "butty"
 version = "0.1.0"
 requires-python = ">=3.12"
 
-dependencies = ["fastapi", "sqlalchemy", "pydantic", "jinja2", "uvicorn"]
+dependencies = [
+  "fastapi",
+  "sqlalchemy",
+  "pydantic",
+  "jinja2",
+  "dotenv",
+  "plaid-python", # Would like to make this optional
+  "python-multipart",
+  "uvicorn",
+]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "djlint", "pre-commit"]
@@ -35,14 +44,8 @@ ignore = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-addopts = [
-  "--cov=core",
-  "--cov-report=term-missing",
-  "--cov-report=xml",
-]
+addopts = ["--cov=core", "--cov-report=term-missing", "--cov-report=xml"]
 
 [tool.djlint]
 ignore = "J004, H021"
 profile = "jinja"
-# format_css = true
-# format_js = true
