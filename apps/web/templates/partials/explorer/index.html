@@ -222,8 +222,9 @@
             <!-- MAIN MENU -->
             <ul class="context-menu__list" data-view="main">
                 <li class="context-menu__item"
+                    data-action="assign-budget"
                     role="button"
-                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=budgets]').style.display = 'block'; ">
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=budgets]').style.display = 'block';">
                     Assign budget
                 </li>
                 <li class="context-menu__item danger"
@@ -239,7 +240,7 @@
                 </li>
                 <li class="context-menu__item"
                     role="button"
-                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=note]').style.display = 'block'; ">
+                    hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=note]').style.display = 'block';">
                     Edit note
                 </li>
             </ul>
@@ -247,7 +248,7 @@
             <div class="context-menu__view" data-view="budgets" style="display:none;">
                 <div class="context-menu__header"
                      role="button"
-                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=budgets]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=budgets]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';">
                     ← Assign budget
                 </div>
                 {% include "partials/explorer/context_menu_budgets.html" %}
@@ -256,7 +257,7 @@
             <div class="context-menu__view" data-view="note" style="display:none;">
                 <div class="context-menu__header"
                      role="button"
-                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block'; ">
+                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=note]').style.display = 'none'; menu.querySelector('[data-view=main]').style.display = 'block';">
                     ← Edit note
                 </div>
                 <div class="context-menu__note">
