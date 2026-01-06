@@ -94,7 +94,7 @@ def test_get_all_accounts(db: sqlite3.Connection):
     for idx, name in enumerate(accounts):
         db.execute(
             "INSERT INTO accounts (name, external_id, source, account_type, balance, fingerprint) VALUES (?,?,?,?,?,?)",
-            [name, f"ext-{name}", "APPLE", "DEPOSITORY", 0, f"fp-getall-{idx+1}"],
+            [name, f"ext-{name}", "APPLE", "DEPOSITORY", 0, f"fp-getall-{idx + 1}"],
         )
 
     rows = db.execute("SELECT name FROM accounts ORDER BY id").fetchall()

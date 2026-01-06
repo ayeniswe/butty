@@ -344,7 +344,10 @@ def test_tag_and_account_helpers(service):
     assert budget_txns
     assert recent == all_txns
     assert tag.name == "New Tag"
-    assert all(tag.name.lower().startswith("f") or tag.name.lower().startswith("r") for tag in all_tags)
+    assert all(
+        tag.name.lower().startswith("f") or tag.name.lower().startswith("r")
+        for tag in all_tags
+    )
     assert budget_tags and accounts
     assert service.store.tag_assignments[-1] == (1, 2, "deleted")
     assert link_token == "link-token"
@@ -353,8 +356,22 @@ def test_tag_and_account_helpers(service):
 def test_create_accounts_by_plaid(service):
     # Branch with no new accounts
     service.store.inserted_accounts = [
-        PartialAccount("acc1", TransactionSource.PLAID, TransactionType.CREDIT, "Existing", 0, "finger1"),
-        PartialAccount("acc2", TransactionSource.PLAID, TransactionType.CREDIT, "Existing", 0, "finger2"),
+        PartialAccount(
+            "acc1",
+            TransactionSource.PLAID,
+            TransactionType.CREDIT,
+            "Existing",
+            0,
+            "finger1",
+        ),
+        PartialAccount(
+            "acc2",
+            TransactionSource.PLAID,
+            TransactionType.CREDIT,
+            "Existing",
+            0,
+            "finger2",
+        ),
     ]
     service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token is None
