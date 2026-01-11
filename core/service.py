@@ -120,11 +120,8 @@ class Service:
     def get_budget_overview(self, month: int, year: int) -> dict:
         budgets = self.get_all_budgets(month, year)
         total_allocated = sum(budget.amount_allocated for budget in budgets)
-        transactions = self.get_all_recent_transactions(month, year)
         total_spent = sum(
-            abs(transaction.amount)
-            for transaction in transactions
-            if transaction.direction == TransactionDirection.OUT
+            budget.amount_spent for budget in budgets if budget.amount_spent
         )
         return {
             "total_allocated": total_allocated,

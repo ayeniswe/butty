@@ -612,11 +612,11 @@ async def import_transactions(
 
     normalized_headers = {header.strip().lower(): header for header in reader.fieldnames}
     expected = {
-        "date (yyyy-mm-dd)": "Date (YYYY-MM-DD)",
+        "date": "Date",
         "description": "Description",
         "amount": "Amount",
         "account name": "Account Name",
-        "budget (can be empty)": "Budget (Can be Empty)",
+        "budget": "Budget",
     }
     missing = [
         expected[key]
@@ -631,11 +631,11 @@ async def import_transactions(
 
     rows: list[dict[str, object]] = []
     for row in reader:
-        date_raw = row.get(normalized_headers["date (yyyy-mm-dd)"], "").strip()
+        date_raw = row.get(normalized_headers["date"], "").strip()
         description = row.get(normalized_headers["description"], "").strip()
         amount_raw = row.get(normalized_headers["amount"], "").strip()
         account_name = row.get(normalized_headers["account name"], "").strip()
-        budget_name = row.get(normalized_headers["budget (can be empty)"], "").strip()
+        budget_name = row.get(normalized_headers["budget"], "").strip()
 
         if not date_raw or not description or not amount_raw or not account_name:
             continue
