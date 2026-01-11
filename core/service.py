@@ -12,7 +12,7 @@ from core.datastore.model import (
     TransactionType,
     TransactionView,
 )
-from core.model import AppleTransaction
+from core.model import AppleAccountTransactions
 from core.utils import (
     build_fingerprint,
     cents_to_dollars,
@@ -344,34 +344,34 @@ class Service:
 
     # MARK: Transactions (Apple Card Integration)
 
-    def sync_apple_transactions(self, transactions: list[AppleTransaction]):
+    def sync_apple_transactions(self, payloads: list[AppleAccountTransactions]):
         # NOTE
         # All Apple transactions are expected to be credit from
         # Apple Card
 
-        if transactions:
-            # Must use first trans to get account since no
-            # easy way to get accounts
-
-            transaction = transactions[0]
-            GENERIC_NAME = "Apple Card"
+        for payload in payloads:
+            account = payload.account
             fingerprint = Service.__build_account_fingerprint(
-                GENERIC_NAME, GENERIC_NAME, TransactionType.CREDIT, 0
+                account.institution_name or account.id,
+                account.display_name,
+                TransactionType.CREDIT,
+                account.card_last4 or "",
             )
             account_id = self.store.account_exists_by_fingerprint(fingerprint)
 
             if not account_id:
+                balance = account.available_balance or 0
                 account_id = self.store.insert_account(
                     PartialAccount(
-                        transaction.account_id,
+                        account.id,
                         TransactionSource.APPLE,
                         TransactionType.CREDIT,
-                        GENERIC_NAME,
-                        0,  # TODO add the correct balance
+                        account.display_name,
+                        balance,
                         fingerprint,
                     )
                 )
-            for transaction in transactions:
+            for transaction in payload.transactions:
                 # NOTE
                 # All transactions should be stored as cents
                 self.store.insert_transaction(
