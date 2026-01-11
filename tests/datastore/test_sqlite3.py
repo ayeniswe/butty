@@ -219,6 +219,39 @@ def test_update_transaction_note(db: Sqlite3):
     assert row.note == "Walmart"
 
 
+def test_select_transaction_id_by_fingerprint_or_external_id(db: Sqlite3):
+    db.insert_account(
+        PartialAccount(
+            name="Default Account",
+            external_id="ext-acc-1",
+            source=TransactionSource.APPLE,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-4",
+        )
+    )
+    transaction_id = db.insert_transaction(
+        PartialTransaction(
+            "Utilities",
+            75,
+            TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-txn-4",
+            external_id="ext-txn-4",
+        )
+    )
+
+    by_fingerprint = db.select_transaction_id_by_fingerprint_or_external_id(
+        "fp-txn-4", None
+    )
+    by_external_id = db.select_transaction_id_by_fingerprint_or_external_id(
+        "missing", "ext-txn-4"
+    )
+
+    assert by_fingerprint == transaction_id
+    assert by_external_id == transaction_id
+
+
 def test_delete_transaction(db: Sqlite3):
     db.insert_account(
         PartialAccount(

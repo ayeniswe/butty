@@ -59,6 +59,9 @@ class FakeStore:
         self.budgets = []
         self.inserted_budgets = []
         self.transactions = []
+        self.transaction_fingerprints: dict[str, int] = {}
+        self.transaction_external_ids: dict[str, int] = {}
+        self.force_insert_transaction_none = False
         self.inserted_budget_transactions = []
         self.transaction_note_updates = []
         self.budget_updates: list[PartialBudget] = []
@@ -98,7 +101,10 @@ class FakeStore:
         return list(self.budgets)
 
     def select_budget(self, id: int):
-        return self.budgets[id]
+        for budget in self.budgets:
+            if budget.id == id:
+                return budget
+        raise IndexError("Budget not found")
 
     def delete_budget(self, id: int):
         self.deleted_budget = id
@@ -124,9 +130,25 @@ class FakeStore:
         ]
 
     def insert_transaction(self, partial: PartialTransaction):
+        if self.force_insert_transaction_none:
+            return None
+        if partial.fingerprint in self.transaction_fingerprints:
+            return None
+        if partial.external_id and partial.external_id in self.transaction_external_ids:
+            return None
         txn_id = len(self.transactions)
         self.transactions.append(partial)
+        self.transaction_fingerprints[partial.fingerprint] = txn_id
+        if partial.external_id:
+            self.transaction_external_ids[partial.external_id] = txn_id
         return txn_id
+
+    def select_transaction_id_by_fingerprint_or_external_id(
+        self, fingerprint: str, external_id: str | None
+    ):
+        if external_id and external_id in self.transaction_external_ids:
+            return self.transaction_external_ids[external_id]
+        return self.transaction_fingerprints.get(fingerprint)
 
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
         self.inserted_budget_transactions.append((budget_id, transaction_id))
@@ -165,7 +187,10 @@ class FakeStore:
         return self.accounts_by_id[account_id]
 
     def account_exists_by_fingerprint(self, fingerprint: str):
-        return any(acc.fingerprint == fingerprint for acc in self.inserted_accounts)
+        for index, account in enumerate(self.inserted_accounts, start=1):
+            if account.fingerprint == fingerprint:
+                return index
+        return None
 
     def insert_account(self, partial: PartialAccount):
         self.inserted_accounts.append(partial)
@@ -241,6 +266,41 @@ def test_budget_retrieval_and_updates(service):
     assert any(update.amount_allocated == 25 for update in service.store.budget_updates)
 
 
+def test_budget_overview_and_refresh_spent(service):
+    service.store.budgets = [
+        Budget(1, "Rent", 5000, 1200, 0, datetime.datetime(2023, 4, 1)),
+        Budget(2, "Food", 2500, 300, 0, datetime.datetime(2023, 4, 1)),
+    ]
+
+    overview = service.get_budget_overview(4, 2023)
+    spent = service.refresh_budget_spent(1)
+
+    assert overview["total_allocated"] == 7500
+    assert overview["total_spent"] == 1500
+    assert spent == 1200
+    assert service.store.budget_updates[-1].amount_spent == 1200
+
+
+def test_ensure_import_account_returns_existing(service):
+    fingerprint = Service._Service__build_account_fingerprint(
+        "CSV", "Checking", TransactionType.DEPOSITORY, "0000"
+    )
+    service.store.inserted_accounts = [
+        PartialAccount(
+            "csv:checking",
+            TransactionSource.PLAID,
+            TransactionType.DEPOSITORY,
+            "Checking",
+            0,
+            fingerprint,
+        )
+    ]
+
+    account_id = service._ensure_import_account("Checking")
+
+    assert account_id == 1
+
+
 def test_transaction_creation_and_assignment(service):
     service.store.transactions = [
         Transaction(
@@ -253,6 +313,10 @@ def test_transaction_creation_and_assignment(service):
             external_id=None,
             note=None,
         )
+    ]
+    service.store.budgets = [
+        Budget(5, "Test Budget", 1000, 0, 0, datetime.datetime(2023, 3, 1)),
+        Budget(2, "Secondary Budget", 500, 0, 0, datetime.datetime(2023, 3, 1)),
     ]
 
     txn_id = service.create_transaction("Test", -10, 1, "2023-03-01T00:00:00")
@@ -381,3 +445,155 @@ def test_create_accounts_by_plaid(service):
     service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token == "access-public-token"
     assert any(acc.plaid_id == 99 for acc in service.store.inserted_accounts)
+
+
+def test_import_transactions_from_csv_reuses_existing_transaction_id(service):
+    occurred_at = datetime.datetime(2023, 5, 10)
+    fingerprint = Service._Service__build_transaction_fingerprint(
+        "Lunch", 12, TransactionDirection.OUT, occurred_at
+    )
+    existing = Transaction(
+        id=0,
+        name="Lunch",
+        amount=12,
+        direction=TransactionDirection.OUT,
+        occurred_at=occurred_at,
+        account_id=1,
+        external_id=None,
+        note=None,
+    )
+    service.store.transactions.append(existing)
+    service.store.transaction_fingerprints[fingerprint] = 0
+    service.store.budgets = [
+        Budget(1, "Food", 1000, 0, 0, datetime.datetime(2023, 5, 1))
+    ]
+
+    rows = [
+        {
+            "occurred_at": occurred_at,
+            "amount": -12,
+            "account_name": "Checking",
+            "description": "Lunch",
+            "budget_name": "Food",
+        }
+    ]
+
+    imported = service.import_transactions_from_csv(rows)
+
+    assert imported == 1
+    assert service.store.inserted_budget_transactions == [(1, 0)]
+
+
+def test_import_transactions_from_csv_skips_missing_budget_name(service):
+    rows = [
+        {
+            "occurred_at": datetime.datetime(2023, 6, 1),
+            "amount": -20,
+            "account_name": "Checking",
+            "description": "Taxi",
+        }
+    ]
+
+    imported = service.import_transactions_from_csv(rows)
+
+    assert imported == 1
+    assert service.store.inserted_budget_transactions == []
+
+
+def test_import_transactions_from_csv_skips_when_transaction_unresolved(service):
+    service.store.force_insert_transaction_none = True
+    rows = [
+        {
+            "occurred_at": datetime.datetime(2023, 6, 1),
+            "amount": -15,
+            "account_name": "Checking",
+            "description": "Snack",
+            "budget_name": "Food",
+        }
+    ]
+
+    imported = service.import_transactions_from_csv(rows)
+
+    assert imported == 1
+    assert service.store.inserted_budget_transactions == []
+
+
+def test_import_transactions_from_csv_skips_missing_budget(service):
+    service.store.budgets = [
+        Budget(2, "Rent", 1500, 0, 0, datetime.datetime(2023, 6, 1))
+    ]
+    rows = [
+        {
+            "occurred_at": datetime.datetime(2023, 6, 15),
+            "amount": -40,
+            "account_name": "Checking",
+            "description": "Parking",
+            "budget_name": "Travel",
+        }
+    ]
+
+    imported = service.import_transactions_from_csv(rows)
+
+    assert imported == 1
+    assert service.store.inserted_budget_transactions == []
+
+
+def test_import_transactions_from_csv_skips_budget_assignment_on_mismatch(
+    service,
+):
+    occurred_at = datetime.datetime(2023, 7, 10)
+    fingerprint = Service._Service__build_transaction_fingerprint(
+        "Dinner", 30, TransactionDirection.OUT, occurred_at
+    )
+    service.store.transactions.append(
+        Transaction(
+            id=0,
+            name="Dinner",
+            amount=30,
+            direction=TransactionDirection.OUT,
+            occurred_at=datetime.datetime(2023, 8, 10),
+            account_id=1,
+            external_id=None,
+            note=None,
+        )
+    )
+    service.store.transaction_fingerprints[fingerprint] = 0
+    service.store.budgets = [
+        Budget(3, "Food", 1200, 0, 0, datetime.datetime(2023, 7, 1))
+    ]
+    rows = [
+        {
+            "occurred_at": occurred_at,
+            "amount": -30,
+            "account_name": "Checking",
+            "description": "Dinner",
+            "budget_name": "Food",
+        }
+    ]
+
+    imported = service.import_transactions_from_csv(rows)
+
+    assert imported == 1
+    assert service.store.inserted_budget_transactions == []
+
+
+def test_assign_transaction_to_budget_parses_string_date(service):
+    service.store.transactions.append(
+        Transaction(
+            id=0,
+            name="Subscription",
+            amount=25,
+            direction=TransactionDirection.OUT,
+            occurred_at="2023-09-05",
+            account_id=1,
+            external_id=None,
+            note=None,
+        )
+    )
+    service.store.budgets = [
+        Budget(1, "Services", 900, 0, 0, datetime.datetime(2023, 9, 1))
+    ]
+
+    service.assign_transaction_to_budget(1, 0, 9, 2023)
+
+    assert service.store.inserted_budget_transactions == [(1, 0)]
