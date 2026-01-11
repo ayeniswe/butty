@@ -52,6 +52,26 @@
                 <span>Sync</span>
             </span>
         </button>
+        <form class="explorer-import"
+              hx-post="/transactions/import"
+              hx-encoding="multipart/form-data"
+              hx-target="#explorer-history"
+              hx-swap="innerHTML">
+            <label class="pill pill--xsmall pill--secondary">
+                <span class="pill__content">
+                    <svg class="icon icon--spacing" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                    Import CSV
+                </span>
+                <input class="explorer-import__input"
+                       type="file"
+                       name="file"
+                       accept=".csv,text/csv"
+                       hx-on="change: this.form.requestSubmit();"
+                       required />
+            </label>
+        </form>
         <button class="pill pill--xsmall pill--secondary"
                 hx-get="/link"
                 hx-target="this"

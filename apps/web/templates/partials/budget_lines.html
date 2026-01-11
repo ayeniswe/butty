@@ -49,6 +49,36 @@
         </div>
     {% endif %}
 </header>
+{% if overview %}
+    {% if overview.total_allocated and overview.total_allocated > 0 %}
+        {% set total_pct = (overview.total_spent / overview.total_allocated) * 100 %}
+    {% else %}
+        {% set total_pct = 0 %}
+    {% endif %}
+    {% set total_pct = total_pct | round(0) %}
+    <section class="budget-overview">
+        <div class="budget-overview__card">
+            <div class="budget-overview__text">
+                <p class="budget-overview__label">Total spent</p>
+                <h4 class="budget-overview__value">${{ '%.0f' % (overview.total_spent / 100) }}</h4>
+            </div>
+            <div class="budget-overview__text">
+                <p class="budget-overview__label">Total allocated</p>
+                <h4 class="budget-overview__value">${{ '%.0f' % (overview.total_allocated / 100) }}</h4>
+            </div>
+        </div>
+        <div class="budget-overview__bar">
+            <div class="progress"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-valuenow="{{ total_pct|round(0) }}">
+                <div class="progress__bar"
+                     style="width: {{ [total_pct,100]| min | round(0) }}%"></div>
+            </div>
+            <span class="budget-overview__meta">{{ total_pct|round(0) }}% of allocation spent</span>
+        </div>
+    </section>
+{% endif %}
 {% if not readonly %}
     <form id="budget-summary-create"
           class="budget-summary"

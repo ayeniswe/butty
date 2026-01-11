@@ -47,7 +47,8 @@
                 </svg>
                 Spent
             </label>
-            <div class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
+            <div id="budget-summary-spent"
+                 class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
         </div>
     </form>
     <div class="budget-subheader">

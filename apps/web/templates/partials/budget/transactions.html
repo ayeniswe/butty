@@ -1,3 +1,8 @@
+{% if budget_spent is not none %}
+    <div id="budget-summary-spent"
+         class="budget-summary__readonly"
+         hx-swap-oob="true">${{ '%.0f' % (budget_spent / 100) }}</div>
+{% endif %}
 <ul class="budget-list__items budget-list__items--scroll"
     hx-on=" click: const btn = this.querySelector('.transaction-create__button'); const form = this.querySelector('.transaction-create');  if (form.classList.contains('is-active')) { form.classList.remove('is-active'); btn.classList.add('is-active'); } scroll: const form = this.querySelector('.transaction-create.is-active'); const btn = this.querySelector('.transaction-create__button');  if (form) { form.classList.remove('is-active'); btn.classList.add('is-active'); }; ">
     <li class="budget-tab-create-row">
