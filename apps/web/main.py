@@ -1,12 +1,24 @@
 # MARK: Imports
+import csv
 import os
+from io import StringIO
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -102,6 +114,26 @@ def _explorer_response(
     )
 
 
+def _budget_lines_response(
+    request: Request,
+    service: Service,
+    month: int,
+    year: int | None,
+) -> HTMLResponse:
+    mth_ctx = _month_context(month, year)
+    overview = service.get_budget_overview(mth_ctx["current_month"], mth_ctx["year"])
+    return templates.TemplateResponse(
+        "partials/budget_lines.html",
+        {
+            "request": request,
+            "budgets": service.get_all_budgets(
+                mth_ctx["current_month"], mth_ctx["year"]
+            ),
+            "overview": overview,
+            **mth_ctx,
+        },
+    )
+
 # MARK: Root Routes
 
 
@@ -195,16 +227,7 @@ def budget_lines(
     month: int,
     year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "partials/budget_lines.html",
-        {
-            "request": request,
-            "budgets": service.get_all_budgets(
-                month, datetime.now().year if not year else year
-            ),
-            **_month_context(month, year),
-        },
-    )
+    return _budget_lines_response(request, service, month, year)
 
 
 @budget_router.post("", response_class=HTMLResponse)
@@ -218,16 +241,7 @@ def budget_create(
 ) -> HTMLResponse:
     service.create_budget(name, allocated if allocated is not None else 0.0)
 
-    return templates.TemplateResponse(
-        "partials/budget_lines.html",
-        {
-            "request": request,
-            "budgets": service.get_all_budgets(
-                month, datetime.now().year if not year else year
-            ),
-            **_month_context(month, year),
-        },
-    )
+    return _budget_lines_response(request, service, month, year)
 
 
 @budget_router.post("/copy", response_class=HTMLResponse)
@@ -245,16 +259,7 @@ def budget_copy(
         year,
     )
 
-    return templates.TemplateResponse(
-        "partials/budget_lines.html",
-        {
-            "request": request,
-            "budgets": service.get_all_budgets(
-                month, datetime.now().year if not year else year
-            ),
-            **mth_ctx,
-        },
-    )
+    return _budget_lines_response(request, service, month, year)
 
 
 @budget_router.get("/{id}", response_class=HTMLResponse)
@@ -265,6 +270,7 @@ def budget(
     month: int = Query(...),
     year: int | None = Query(None),
 ) -> HTMLResponse:
+    service.refresh_budget_spent(id)
     budget = service.get_budget(id)
     return templates.TemplateResponse(
         "partials/budget/index.html",
@@ -321,16 +327,7 @@ def budget_delete(
 ) -> HTMLResponse:
     service.delete_budget(id)
 
-    return templates.TemplateResponse(
-        "partials/budget_lines.html",
-        {
-            "request": request,
-            "budgets": service.get_all_budgets(
-                month, datetime.now().year if not year else year
-            ),
-            **_month_context(month, year),
-        },
-    )
+    return _budget_lines_response(request, service, month, year)
 
 
 @budget_router.get("/{id}/edit", response_class=HTMLResponse)
@@ -369,6 +366,7 @@ def budget_transactions(
     month: int = Query(...),
     year: int | None = Query(None),
 ) -> HTMLResponse:
+    budget_spent = service.refresh_budget_spent(id)
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
         {
@@ -376,6 +374,7 @@ def budget_transactions(
             "id": id,
             "accounts": service.get_all_accounts(),
             "transactions": service.get_all_budget_transactions(id),
+            "budget_spent": budget_spent,
             **_month_context(month, year),
         },
     )
@@ -392,6 +391,7 @@ def create_budget_transaction(
     date: str = Form(...),
 ) -> HTMLResponse:
     service.create_budget_transaction(id, name, amount, account_id, date)
+    budget_spent = service.refresh_budget_spent(id)
 
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
@@ -400,6 +400,7 @@ def create_budget_transaction(
             "id": id,
             "accounts": service.get_all_accounts(),
             "transactions": service.get_all_budget_transactions(id),
+            "budget_spent": budget_spent,
         },
     )
 
@@ -417,6 +418,7 @@ def update_budget_transaction_note(
     if note is None:
         note = ""
     service.update_transaction_note(transaction_id, note)
+    budget_spent = service.refresh_budget_spent(id)
 
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
@@ -424,6 +426,7 @@ def update_budget_transaction_note(
             "request": request,
             "id": id,
             "transactions": service.get_all_budget_transactions(id),
+            "budget_spent": budget_spent,
         },
     )
 
@@ -438,10 +441,16 @@ def budget_transaction_delete(
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
     service.unassign_transaction_to_budget(id, transaction_id)
+    budget_spent = service.refresh_budget_spent(id)
 
     return templates.TemplateResponse(
         "partials/budget/transactions.html",
-        {"request": request, "id": id, **_base_context(service)},
+        {
+            "request": request,
+            "id": id,
+            "transactions": service.get_all_budget_transactions(id),
+            "budget_spent": budget_spent,
+        },
     )
 
 
@@ -584,6 +593,84 @@ def sync_transactions(
     service: Annotated[Service, Depends(get_service)],
 ) -> HTMLResponse:
     service.sync_all_transactions()
+    return _explorer_response(request, service)
+
+
+@transactions_router.post("/import", response_class=HTMLResponse)
+async def import_transactions(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    file: UploadFile = File(...),
+) -> HTMLResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="CSV file is required.")
+
+    content = (await file.read()).decode("utf-8-sig")
+    reader = csv.DictReader(StringIO(content))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV headers are missing.")
+
+    normalized_headers = {header.strip().lower(): header for header in reader.fieldnames}
+    expected = {
+        "date (yyyy-mm-dd)": "Date (YYYY-MM-DD)",
+        "description": "Description",
+        "amount": "Amount",
+        "account name": "Account Name",
+        "budget (can be empty)": "Budget (Can be Empty)",
+    }
+    missing = [
+        expected[key]
+        for key in expected
+        if key not in normalized_headers
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required columns: {', '.join(missing)}",
+        )
+
+    rows: list[dict[str, object]] = []
+    for row in reader:
+        date_raw = row.get(normalized_headers["date (yyyy-mm-dd)"], "").strip()
+        description = row.get(normalized_headers["description"], "").strip()
+        amount_raw = row.get(normalized_headers["amount"], "").strip()
+        account_name = row.get(normalized_headers["account name"], "").strip()
+        budget_name = row.get(normalized_headers["budget (can be empty)"], "").strip()
+
+        if not date_raw or not description or not amount_raw or not account_name:
+            continue
+
+        try:
+            occurred_at = datetime.fromisoformat(date_raw)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date format: {date_raw}",
+            ) from exc
+
+        sanitized_amount = amount_raw.replace("$", "").replace(",", "")
+        try:
+            amount = float(sanitized_amount)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid amount: {amount_raw}",
+            ) from exc
+
+        rows.append(
+            {
+                "occurred_at": occurred_at,
+                "description": description,
+                "amount": amount,
+                "account_name": account_name,
+                "budget_name": budget_name,
+            }
+        )
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No valid rows to import.")
+
+    service.import_transactions_from_csv(rows)
     return _explorer_response(request, service)
 
 

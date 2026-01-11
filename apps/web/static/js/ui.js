@@ -8,6 +8,57 @@ document.addEventListener('pointerdown', (e) => {
     }
 }, true); // 👈 CAPTURE phase
 
+function triggerBudgetRefreshIfListVisible() {
+    const budgetList = document.getElementById('budget-list-items');
+    if (!budgetList) return;
+    htmx.trigger(document.body, 'refresh-budgets');
+}
+
+function adjustTxnContextMenuBounds(menu, anchorX, anchorY) {
+    const viewport = window.visualViewport;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const padding = 12;
+
+    menu.style.maxHeight = `${Math.max(0, viewportHeight - padding * 2)}px`;
+    menu.style.overflowY = 'auto';
+
+    const rect = menu.getBoundingClientRect();
+    let left = anchorX;
+    let top = anchorY;
+
+    const rightLimit = viewportLeft + viewportWidth - padding;
+    const bottomLimit = viewportTop + viewportHeight - padding;
+    const leftLimit = viewportLeft + padding;
+    const topLimit = viewportTop + padding;
+
+    if (rect.right > rightLimit) {
+        left = Math.max(leftLimit, rightLimit - rect.width);
+    }
+    if (rect.bottom > bottomLimit) {
+        top = Math.max(topLimit, bottomLimit - rect.height);
+    }
+    if (left < leftLimit) {
+        left = leftLimit;
+    }
+    if (top < topLimit) {
+        top = topLimit;
+    }
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+
+    const header = menu.querySelector('.context-menu__header');
+    const headerHeight = header ? header.getBoundingClientRect().height : 0;
+    const scrollLists = menu.querySelectorAll('.context-menu__list--scroll');
+    const maxListHeight = Math.max(140, viewportHeight - headerHeight - padding * 4);
+    scrollLists.forEach((list) => {
+        list.style.maxHeight = `${maxListHeight}px`;
+    });
+}
+
 function closeTxnContextMenu() {
     const menu = document.getElementById('txn-context-menu');
     if (!menu) return;
@@ -44,8 +95,11 @@ function openTxnContextMenu(event, rowEl) {
     menu.dataset.txnBudgeted = rowEl.dataset.txnBudgeted;
     menu.dataset.txnNote = rowEl.dataset.txnNote || '';
 
-    menu.style.top = event.clientY + 'px';
-    menu.style.left = event.clientX + 'px';
+    const rowRect = rowEl.getBoundingClientRect();
+    const clickX = Number.isFinite(event.clientX) ? event.clientX : rowRect.left;
+    const clickY = Number.isFinite(event.clientY) ? event.clientY : rowRect.top;
+    menu.dataset.anchorX = String(clickX);
+    menu.dataset.anchorY = String(clickY);
 
     const txnDate = new Date(rowEl.dataset.txnOccurredAt);
     const txnMonth = txnDate.getMonth() + 1;
@@ -75,6 +129,23 @@ function openTxnContextMenu(event, rowEl) {
     }
 
     menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+    menu.style.top = clickY + 'px';
+    menu.style.left = clickX + 'px';
+    adjustTxnContextMenuBounds(menu, clickX, clickY);
+    menu.style.visibility = 'visible';
     menu.classList.add('is-visible');
     htmx.trigger(document.body, 'txn-menu-open');
+}
+
+if (window.visualViewport) {
+    const handleViewportChange = () => {
+        const menu = document.getElementById('txn-context-menu');
+        if (!menu || !menu.classList.contains('is-visible')) return;
+        const anchorX = Number(menu.dataset.anchorX || 0);
+        const anchorY = Number(menu.dataset.anchorY || 0);
+        adjustTxnContextMenuBounds(menu, anchorX, anchorY);
+    };
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
 }
