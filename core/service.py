@@ -182,24 +182,33 @@ class Service:
                 TransactionDirection.OUT if amount < 0 else TransactionDirection.IN
             )
             normalized_amount = abs(amount)
+            fingerprint = Service.__build_transaction_fingerprint(
+                row["description"],
+                normalized_amount,
+                direction,
+                occurred_at,
+            )
             transaction_id = self.store.insert_transaction(
                 PartialTransaction(
                     row["description"],
                     normalized_amount,
                     direction,
                     account_id,
-                    Service.__build_transaction_fingerprint(
-                        row["description"],
-                        normalized_amount,
-                        direction,
-                        occurred_at,
-                    ),
+                    fingerprint,
                     occurred_at=occurred_at,
                 )
             )
             imported += 1
+            if transaction_id is None:
+                transaction_id = (
+                    self.store.select_transaction_id_by_fingerprint_or_external_id(
+                        fingerprint, None
+                    )
+                )
 
             if not budget_name:
+                continue
+            if transaction_id is None:
                 continue
 
             key = (occurred_at.month, occurred_at.year)

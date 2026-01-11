@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import MetaData, create_engine, delete, insert, select, update
+from sqlalchemy import MetaData, create_engine, delete, insert, or_, select, update
 
 from core.datastore.base import DataStore
 from core.datastore.model import (
@@ -114,7 +114,7 @@ class Sqlite3(DataStore):
             ).fetchall()
 
     # MARK: - Transactions
-    def insert_transaction(self, obj: PartialTransaction) -> int:
+    def insert_transaction(self, obj: PartialTransaction) -> int | None:
         with self.engine.begin() as conn:
             values = {
                 "name": obj.name,
@@ -131,6 +131,8 @@ class Sqlite3(DataStore):
             result = conn.execute(
                 insert(self.transactions).values(values).prefix_with("OR IGNORE")
             )
+            if result.rowcount == 0:
+                return None
             return result.inserted_primary_key[0]
 
     def update_transaction_note(self, id: int, note: str):
@@ -150,6 +152,22 @@ class Sqlite3(DataStore):
             return conn.execute(
                 select(self.transactions).where(self.transactions.c.id == id)
             ).fetchone()
+
+    def select_transaction_id_by_fingerprint_or_external_id(
+        self, fingerprint: str, external_id: str | None
+    ) -> int | None:
+        with self.engine.begin() as conn:
+            if external_id:
+                condition = or_(
+                    self.transactions.c.fingerprint == fingerprint,
+                    self.transactions.c.external_id == external_id,
+                )
+            else:
+                condition = self.transactions.c.fingerprint == fingerprint
+            row = conn.execute(
+                select(self.transactions.c.id).where(condition)
+            ).fetchone()
+            return row[0] if row else None
 
     def retrieve_transactions(self) -> list[TransactionView]:
         with self.engine.begin() as conn:
