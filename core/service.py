@@ -17,6 +17,7 @@ from core.utils import (
     build_fingerprint,
     cents_to_dollars,
     derive_direction,
+    normalize,
 )
 
 
@@ -116,6 +117,110 @@ class Service:
     def get_all_budget_transactions(self, budget_id: int) -> list[TransactionView]:
         return self.store.retrieve_budget_transactions(budget_id)
 
+    def get_budget_overview(self, month: int, year: int) -> dict:
+        budgets = self.get_all_budgets(month, year)
+        total_allocated = sum(budget.amount_allocated for budget in budgets)
+        total_spent = sum(
+            budget.amount_spent for budget in budgets if budget.amount_spent
+        )
+        return {
+            "total_allocated": total_allocated,
+            "total_spent": total_spent,
+        }
+
+    def refresh_budget_spent(self, budget_id: int) -> int:
+        transactions = self.get_all_budget_transactions(budget_id)
+        spent = sum(
+            abs(transaction.amount)
+            for transaction in transactions
+            if transaction.direction == TransactionDirection.OUT
+        )
+        budget = self.get_budget(budget_id)
+        self.store.update_budget(
+            PartialBudget(
+                id=budget.id,
+                name=budget.name,
+                amount_allocated=cents_to_dollars(budget.amount_allocated),
+                amount_spent=spent,
+                level=budget.level,
+            )
+        )
+        return spent
+
+    def _ensure_import_account(self, account_name: str) -> int:
+        external_id = f"csv:{normalize(account_name)}"
+        fingerprint = Service.__build_account_fingerprint(
+            "CSV", account_name, TransactionType.DEPOSITORY, "0000"
+        )
+        account_id = self.store.account_exists_by_fingerprint(fingerprint)
+        if account_id:
+            return account_id
+
+        return self.store.insert_account(
+            PartialAccount(
+                external_id=external_id,
+                source=TransactionSource.PLAID,
+                account_type=TransactionType.DEPOSITORY,
+                name=account_name,
+                balance=0,
+                fingerprint=fingerprint,
+            )
+        )
+
+    def import_transactions_from_csv(self, rows: list[dict[str, object]]) -> int:
+        imported = 0
+        budgets_by_month: dict[tuple[int, int], dict[str, int]] = {}
+
+        for row in rows:
+            occurred_at = row["occurred_at"]
+            amount = row["amount"]
+            account_name = row["account_name"]
+            budget_name = row.get("budget_name", "")
+
+            account_id = self._ensure_import_account(account_name)
+            direction = (
+                TransactionDirection.OUT if amount < 0 else TransactionDirection.IN
+            )
+            normalized_amount = abs(amount)
+            transaction_id = self.store.insert_transaction(
+                PartialTransaction(
+                    row["description"],
+                    normalized_amount,
+                    direction,
+                    account_id,
+                    Service.__build_transaction_fingerprint(
+                        row["description"],
+                        normalized_amount,
+                        direction,
+                        occurred_at,
+                    ),
+                    occurred_at=occurred_at,
+                )
+            )
+            imported += 1
+
+            if not budget_name:
+                continue
+
+            key = (occurred_at.month, occurred_at.year)
+            if key not in budgets_by_month:
+                budgets = self.get_all_budgets(occurred_at.month, occurred_at.year)
+                budgets_by_month[key] = {
+                    budget.name.lower(): budget.id for budget in budgets
+                }
+            budget_id = budgets_by_month[key].get(budget_name.lower())
+            if not budget_id:
+                continue
+
+            try:
+                self.assign_transaction_to_budget(
+                    budget_id, transaction_id, occurred_at.month, occurred_at.year
+                )
+            except ValueError:
+                continue
+
+        return imported
+
     # MARK: - Transactions
 
     def create_budget_transaction(
@@ -123,6 +228,7 @@ class Service:
     ):
         transaction_id = self.create_transaction(name, amount, account_id, date)
         self.store.insert_budget_transaction(budget_id, transaction_id)
+        self.refresh_budget_spent(budget_id)
 
     def create_transaction(self, name: str, amount: float, account_id: str, date: str):
         amount = abs(amount)
@@ -158,6 +264,7 @@ class Service:
             return False
 
         self.store.delete_budget_transaction(budget_id, transaction_id)
+        self.refresh_budget_spent(budget_id)
         return True
 
     def assign_transaction_to_budget(
@@ -172,6 +279,7 @@ class Service:
             raise ValueError("Transaction falls outside the selected month and year")
 
         self.store.insert_budget_transaction(budget_id, transaction_id)
+        self.refresh_budget_spent(budget_id)
 
     def sync_all_transactions(self):
         self.__sync_plaid_transactions()
@@ -193,7 +301,7 @@ class Service:
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
 
-                amount = transaction.amount
+                amount = abs(transaction.amount)
                 date = transaction.date
                 direction = derive_direction(
                     amount, account_type == TransactionType.CREDIT
@@ -249,12 +357,12 @@ class Service:
                 self.store.insert_transaction(
                     PartialTransaction(
                         transaction.name,
-                        transaction.amount,
+                        abs(transaction.amount),
                         transaction.direction,
                         account_id,
                         Service.__build_transaction_fingerprint(
                             transaction.name,
-                            transaction.amount,
+                            abs(transaction.amount),
                             transaction.direction,
                             transaction.date,
                         ),
