@@ -17,6 +17,7 @@ from core.utils import (
     build_fingerprint,
     cents_to_dollars,
     derive_direction,
+    normalize,
 )
 
 
@@ -115,6 +116,94 @@ class Service:
 
     def get_all_budget_transactions(self, budget_id: int) -> list[TransactionView]:
         return self.store.retrieve_budget_transactions(budget_id)
+
+    def get_budget_overview(self, month: int, year: int) -> dict:
+        budgets = self.get_all_budgets(month, year)
+        total_allocated = sum(budget.amount_allocated for budget in budgets)
+        transactions = self.get_all_recent_transactions(month, year)
+        total_spent = sum(
+            abs(transaction.amount)
+            for transaction in transactions
+            if transaction.direction == TransactionDirection.OUT
+        )
+        return {
+            "total_allocated": total_allocated,
+            "total_spent": total_spent,
+        }
+
+    def _ensure_import_account(self, account_name: str) -> int:
+        external_id = f"csv:{normalize(account_name)}"
+        fingerprint = Service.__build_account_fingerprint(
+            "CSV", account_name, TransactionType.DEPOSITORY, "0000"
+        )
+        account_id = self.store.account_exists_by_fingerprint(fingerprint)
+        if account_id:
+            return account_id
+
+        return self.store.insert_account(
+            PartialAccount(
+                external_id=external_id,
+                source=TransactionSource.PLAID,
+                account_type=TransactionType.DEPOSITORY,
+                name=account_name,
+                balance=0,
+                fingerprint=fingerprint,
+            )
+        )
+
+    def import_transactions_from_csv(self, rows: list[dict[str, object]]) -> int:
+        imported = 0
+        budgets_by_month: dict[tuple[int, int], dict[str, int]] = {}
+
+        for row in rows:
+            occurred_at = row["occurred_at"]
+            amount = row["amount"]
+            account_name = row["account_name"]
+            budget_name = row.get("budget_name", "")
+
+            account_id = self._ensure_import_account(account_name)
+            direction = (
+                TransactionDirection.OUT if amount < 0 else TransactionDirection.IN
+            )
+            normalized_amount = abs(amount)
+            transaction_id = self.store.insert_transaction(
+                PartialTransaction(
+                    row["description"],
+                    normalized_amount,
+                    direction,
+                    account_id,
+                    Service.__build_transaction_fingerprint(
+                        row["description"],
+                        normalized_amount,
+                        direction,
+                        occurred_at,
+                    ),
+                    occurred_at=occurred_at,
+                )
+            )
+            imported += 1
+
+            if not budget_name:
+                continue
+
+            key = (occurred_at.month, occurred_at.year)
+            if key not in budgets_by_month:
+                budgets = self.get_all_budgets(occurred_at.month, occurred_at.year)
+                budgets_by_month[key] = {
+                    budget.name.lower(): budget.id for budget in budgets
+                }
+            budget_id = budgets_by_month[key].get(budget_name.lower())
+            if not budget_id:
+                continue
+
+            try:
+                self.assign_transaction_to_budget(
+                    budget_id, transaction_id, occurred_at.month, occurred_at.year
+                )
+            except ValueError:
+                continue
+
+        return imported
 
     # MARK: - Transactions
 

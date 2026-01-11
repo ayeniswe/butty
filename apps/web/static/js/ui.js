@@ -44,8 +44,9 @@ function openTxnContextMenu(event, rowEl) {
     menu.dataset.txnBudgeted = rowEl.dataset.txnBudgeted;
     menu.dataset.txnNote = rowEl.dataset.txnNote || '';
 
-    menu.style.top = event.clientY + 'px';
-    menu.style.left = event.clientX + 'px';
+    const rowRect = rowEl.getBoundingClientRect();
+    const clickX = Number.isFinite(event.clientX) ? event.clientX : rowRect.left;
+    const clickY = Number.isFinite(event.clientY) ? event.clientY : rowRect.top;
 
     const txnDate = new Date(rowEl.dataset.txnOccurredAt);
     const txnMonth = txnDate.getMonth() + 1;
@@ -75,6 +76,31 @@ function openTxnContextMenu(event, rowEl) {
     }
 
     menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+    menu.style.top = clickY + 'px';
+    menu.style.left = clickX + 'px';
+
+    const padding = 12;
+    const rect = menu.getBoundingClientRect();
+    let left = clickX;
+    let top = clickY;
+
+    if (rect.right > window.innerWidth - padding) {
+        left = Math.max(padding, window.innerWidth - rect.width - padding);
+    }
+    if (rect.bottom > window.innerHeight - padding) {
+        top = Math.max(padding, window.innerHeight - rect.height - padding);
+    }
+    if (left < padding) {
+        left = padding;
+    }
+    if (top < padding) {
+        top = padding;
+    }
+
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.style.visibility = 'visible';
     menu.classList.add('is-visible');
     htmx.trigger(document.body, 'txn-menu-open');
 }
