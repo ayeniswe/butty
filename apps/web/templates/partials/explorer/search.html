@@ -1,5 +1,10 @@
 {% for transaction in transactions %}
-    <tr>
+    <tr class="explorer-row"
+        data-txn-id="{{ transaction.id }}"
+        data-txn-occurred-at="{{ transaction.occurred_at }}"
+        data-txn-budgeted="{{ 1 if transaction.budget_name else 0 }}"
+        data-txn-note="{{ transaction.note | default('') }}"
+        hx-on="contextmenu: openTxnContextMenu(event, this)">
         <td>{{ transaction.occurred_at.strftime("%b %d, %Y %I:%M %p") }}</td>
         <td class="strong">{{ transaction.name }}</td>
         <td>${{ '%.2f' % (transaction.amount / 100) }}</td>
@@ -9,5 +14,12 @@
         </td>
         <td>{{ transaction.account_name }}</td>
         <td>{{ transaction.budget_name }}</td>
+        <td class="align-center">
+            <button class="pill pill--ghost pill--xsmall"
+                    aria-label="Transaction actions"
+                    hx-on="click: openTxnContextMenu(event, this.closest('[data-txn-id]'))">
+                ⋯
+            </button>
+        </td>
     </tr>
 {% endfor %}
