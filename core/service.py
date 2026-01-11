@@ -301,7 +301,7 @@ class Service:
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
 
-                amount = transaction.amount
+                amount = abs(transaction.amount)
                 date = transaction.date
                 direction = derive_direction(
                     amount, account_type == TransactionType.CREDIT
@@ -357,12 +357,12 @@ class Service:
                 self.store.insert_transaction(
                     PartialTransaction(
                         transaction.name,
-                        transaction.amount,
+                        abs(transaction.amount),
                         transaction.direction,
                         account_id,
                         Service.__build_transaction_fingerprint(
                             transaction.name,
-                            transaction.amount,
+                            abs(transaction.amount),
                             transaction.direction,
                             transaction.date,
                         ),
