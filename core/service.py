@@ -47,9 +47,19 @@ class Service:
 
     @staticmethod
     def __build_transaction_fingerprint(
-        name: str, amount: float, direction: TransactionDirection, date: datetime
+        name: str,
+        amount: float,
+        direction: TransactionDirection,
+        date: datetime,
+        csv_index: int | None = None,
     ):
-        return build_fingerprint(name, str(amount), direction, date.isoformat())
+        return build_fingerprint(
+            name,
+            str(amount),
+            direction,
+            date.isoformat(),
+            str(csv_index) if csv_index is not None else None,
+        )
 
     @staticmethod
     def __build_account_fingerprint(inst_id: str, name: str, subtype: float, mask: str):
@@ -187,6 +197,7 @@ class Service:
                 normalized_amount,
                 direction,
                 occurred_at,
+                row.get("csv_index"),
             )
             transaction_id = self.store.insert_transaction(
                 PartialTransaction(

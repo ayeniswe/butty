@@ -630,7 +630,7 @@ async def import_transactions(
         )
 
     rows: list[dict[str, object]] = []
-    for row in reader:
+    for index, row in enumerate(reader, start=1):
         date_raw = row.get(normalized_headers["date"], "").strip()
         description = row.get(normalized_headers["description"], "").strip()
         amount_raw = row.get(normalized_headers["amount"], "").strip()
@@ -664,6 +664,7 @@ async def import_transactions(
                 "amount": amount,
                 "account_name": account_name,
                 "budget_name": budget_name,
+                "csv_index": index,
             }
         )
 
