@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from core.datastore.db import Sqlite3
-from core.model import AppleTransaction
+from core.model import AppleAccountTransactions
 from core.service import Service
 from core.utils import cents_to_dollars, derive_month_context
 
@@ -677,7 +677,8 @@ async def import_transactions(
 
 @transactions_router.post("/sync/apple", response_class=HTMLResponse)
 def sync_transactions_apple_webhook(
-    service: Annotated[Service, Depends(get_service)], payload: list[AppleTransaction]
+    service: Annotated[Service, Depends(get_service)],
+    payload: list[AppleAccountTransactions],
 ):
     service.sync_apple_transactions(payload)
 

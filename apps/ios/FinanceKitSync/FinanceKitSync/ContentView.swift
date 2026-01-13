@@ -11,6 +11,14 @@ import FinanceKit
 import FinanceKitUI
 
 // MARK: - Export Model (JSON-safe)
+struct ExportAccountInfo: Codable {
+    let id: String
+    let display_name: String
+    let available_balance: Decimal?
+    let institution_name: String?
+    let card_last4: String?
+}
+
 struct ExportTransaction: Codable {
     let id: String
     let account_id: String
@@ -18,6 +26,11 @@ struct ExportTransaction: Codable {
     let amount: Decimal
     let direction: Direction
     let date: Date
+}
+
+struct ExportAccountTransactions: Codable {
+    let account: ExportAccountInfo
+    let transactions: [ExportTransaction]
 }
 enum Direction: String, Codable {
     case IN
@@ -94,15 +107,16 @@ struct ContentView: View {
         isSyncing = true
         statusMessage = "Syncing transactions…"
 
-        let exported = mapTransactions(selectedTransactions)
-
-        guard let url = URL(string: backendURL) else {
-            statusMessage = "Invalid backend URL"
-            isSyncing = false
-            return
-        }
-
         do {
+            let accounts = try await financeStore.accounts()
+            let exported = mapAccountTransactions(selectedTransactions, accounts: accounts)
+
+            guard let url = URL(string: backendURL) else {
+                statusMessage = "Invalid backend URL"
+                isSyncing = false
+                return
+            }
+
             let jsonData = try JSONEncoder.withISO8601.encode(exported)
 
             var request = URLRequest(url: url)
@@ -116,7 +130,8 @@ struct ContentView: View {
                !(200...299).contains(httpResponse.statusCode) {
                 statusMessage = "Sync failed (HTTP \(httpResponse.statusCode))"
             } else {
-                statusMessage = "Synced \(exported.count) transactions"
+                let transactionCount = exported.reduce(0) { $0 + $1.transactions.count }
+                statusMessage = "Synced \(transactionCount) transactions"
             }
         } catch {
             statusMessage = "Sync error: \(error.localizedDescription)"
@@ -126,18 +141,53 @@ struct ContentView: View {
     }
 
     // MARK: - Mapping
-    private func mapTransactions(_ transactions: [FinanceKit.Transaction]) -> [ExportTransaction] {
-        transactions.map { tx in
-            return ExportTransaction(
-                id: tx.id.uuidString,
-                account_id: tx.accountID.uuidString,
-                name: tx.merchantName
-                    ?? tx.transactionDescription,
-                amount: tx.transactionAmount.amount,
-                direction: tx.creditDebitIndicator == .credit ? Direction.IN : Direction.OUT,
-                date: tx.transactionDate
-            )
-        }
+    private func mapAccountTransactions(
+        _ transactions: [FinanceKit.Transaction],
+        accounts: [FinanceKit.Account]
+    ) -> [ExportAccountTransactions] {
+        let accountInfoById = Dictionary(
+            uniqueKeysWithValues: accounts.map { account in
+                (account.id, mapAccountInfo(account))
+            }
+        )
+
+        return Dictionary(grouping: transactions, by: { $0.accountID })
+            .map { accountID, groupedTransactions in
+                let info = accountInfoById[accountID]
+                    ?? ExportAccountInfo(
+                        id: accountID.uuidString,
+                        display_name: "Unknown Account",
+                        available_balance: nil,
+                        institution_name: nil,
+                        card_last4: nil
+                    )
+                return ExportAccountTransactions(
+                    account: info,
+                    transactions: groupedTransactions.map(mapTransaction)
+                )
+            }
+    }
+
+    private func mapAccountInfo(_ account: FinanceKit.Account) -> ExportAccountInfo {
+        ExportAccountInfo(
+            id: account.id.uuidString,
+            display_name: account.displayName,
+            available_balance: account.availableBalance?.amount,
+            institution_name: account.institutionName,
+            card_last4: account.cardLast4
+        )
+    }
+
+    private func mapTransaction(_ tx: FinanceKit.Transaction) -> ExportTransaction {
+        ExportTransaction(
+            id: tx.id.uuidString,
+            account_id: tx.accountID.uuidString,
+            name: tx.merchantName
+                ?? tx.transactionDescription,
+            amount: tx.transactionAmount.amount,
+            direction: tx.creditDebitIndicator == .credit ? Direction.IN : Direction.OUT,
+            date: tx.transactionDate
+        )
     }
 }
 
