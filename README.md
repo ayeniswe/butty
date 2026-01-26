@@ -36,11 +36,11 @@
 5. **Explore the UI**
    Open your browser to `http://127.0.0.1:8000/` to see the dashboard, budgets, and transactions. Static assets and templates live under `apps/web/`.
 
-## Docker (VPS / 24x7)
-Build and run with Docker Compose, storing the SQLite database in a persistent volume:
+## Podman (VPS / 24x7)
+Build and run with Podman Compose, storing the SQLite database in a persistent volume:
 
 ```bash
-docker compose up -d --build
+podman-compose up -d --build
 ```
 
 Then visit `http://<your-server-ip>:8001/`.
@@ -48,7 +48,7 @@ Then visit `http://<your-server-ip>:8001/`.
 To stop:
 
 ```bash
-docker compose down
+podman-compose down
 ```
 
 ## Project layout highlights
