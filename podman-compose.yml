@@ -1,6 +1,7 @@
 services:
   butty:
     build: .
+    image: localhost/butty:latest
     container_name: butty
     ports:
       - "8001:8001"
@@ -14,6 +15,7 @@ services:
 
   butty-test:
     build: .
+    image: localhost/butty:latest
     container_name: butty-test
     ports:
       - "8002:8001"
