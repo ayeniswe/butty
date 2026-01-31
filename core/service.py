@@ -1,4 +1,5 @@
 # MARK: Imports
+import calendar
 from datetime import datetime
 
 from core.datasource.plaid_source import Plaid
@@ -35,13 +36,17 @@ class Service:
 
     @staticmethod
     def __create_start_end_range(month: int, year: int, latest: bool = False):
-        start = datetime(
-            day=datetime.now().day if latest else 1, month=month, year=year
-        )
-        if start.month == 12:
-            end = start.replace(year=start.year + 1, month=1)
+        if latest:
+            last_day = calendar.monthrange(year, month)[1]
+            day = min(datetime.now().day, last_day)
         else:
-            end = start.replace(month=start.month + 1)
+            day = 1
+
+        start = datetime(day=day, month=month, year=year)
+        if start.month == 12:
+            end = datetime(year=start.year + 1, month=1, day=1)
+        else:
+            end = datetime(year=start.year, month=start.month + 1, day=1)
 
         return {"start": start, "end": end}
 
