@@ -1,0 +1,13 @@
+services:
+  butty:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      BUTTY_DB_PATH: /data/db.sqlite
+    volumes:
+      - butty-data:/data
+    restart: unless-stopped
+
+volumes:
+  butty-data:
