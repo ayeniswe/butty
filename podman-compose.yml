@@ -1,6 +1,6 @@
 services:
   butty:
-    image: localhost/butty:prod
+    image: localhost/butty:latest
     container_name: butty
     ports:
       - "8001:8001"
