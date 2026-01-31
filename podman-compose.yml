@@ -1,6 +1,7 @@
 services:
   butty:
     build: .
+    container_name: butty
     ports:
       - "8001:8001"
     env_file:
