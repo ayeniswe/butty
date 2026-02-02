@@ -85,10 +85,9 @@ function openTxnContextMenu(event, rowEl) {
     const removeItem = menu.querySelector('[data-action=remove-budget]');
     const assignItem = menu.querySelector('[data-action=assign-budget]');
 
-    // Determine current period
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1; // JS months are 0-based
-    const currentYear = now.getFullYear();
+    // Determine viewed period from context menu metadata
+    const currentMonth = Number(menu.dataset.currentMonth);
+    const currentYear = Number(menu.dataset.currentYear);
 
     menu.dataset.txnId = rowEl.dataset.txnId;
     menu.dataset.txnOccurredAt = rowEl.dataset.txnOccurredAt;
