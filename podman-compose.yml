@@ -7,25 +7,25 @@ services:
     env_file:
       - .env.prod
     environment:
-      BUTTY_DB_PATH: /data/prod.sqlite
+      BUTTY_DB_PATH: /data/butty.db
     volumes:
-      - butty-data:/data
+      - butty_data:/data
     restart: unless-stopped
 
-  butty-test:
+  butty-dev:
     build: .
     image: localhost/butty:dev
-    container_name: butty-test
+    container_name: butty-dev
     ports:
       - "8002:8001"
     env_file:
       - .env.test
     environment:
-      BUTTY_DB_PATH: /data/test.sqlite
+      BUTTY_DB_PATH: /data/butty.dev.db
     volumes:
-      - butty-data-test:/data
+      - butty_data_dev:/data
     restart: unless-stopped
 
 volumes:
-  butty-data:
-  butty-data-test:
+  butty_data:
+  butty_data_dev:
