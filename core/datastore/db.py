@@ -19,8 +19,14 @@ from core.datastore.model import (
 )
 from core.utils import dollars_to_cents
 
-
 # MARK: SQLite Datastore
+SCHEMA_DIR = Path(__file__).resolve().parent.parent.parent / "schema"
+
+
+def _load_sql(name: str) -> str:
+    return (SCHEMA_DIR / name).read_text()
+
+
 class Sqlite3(DataStore):
     def __init__(self, db_path: Path):
         self.engine = create_engine(f"sqlite:///{db_path}", future=True)
@@ -29,18 +35,14 @@ class Sqlite3(DataStore):
             import sqlite3
 
             conn: sqlite3.Connection = conn.connection.driver_connection
-            conn.executescript(open("schema/tags.sql").read())
-            conn.executescript(open("schema/budgets.sql").read())
-            conn.executescript(open("schema/budgets_tags.sql").read())
-            conn.executescript(open("schema/transactions.sql").read())
-            conn.executescript(open("schema/plaid_accounts.sql").read())
-            plaid_columns = {
-                row[1] for row in conn.execute("PRAGMA table_info(plaid_accounts)")
-            }
-            if "cursor" not in plaid_columns:
-                conn.execute("ALTER TABLE plaid_accounts ADD COLUMN cursor TEXT")
-            conn.executescript(open("schema/accounts.sql").read())
-            conn.executescript(open("schema/budgets_transactions.sql").read())
+            conn.executescript(_load_sql("tags.sql"))
+            conn.executescript(_load_sql("budgets.sql"))
+            conn.executescript(_load_sql("budgets_tags.sql"))
+            conn.executescript(_load_sql("transactions.sql"))
+            conn.executescript(_load_sql("plaid_accounts.sql"))
+            conn.executescript(_load_sql("accounts.sql"))
+            conn.executescript(_load_sql("budgets_transactions.sql"))
+            self.__apply_migrations(conn)
 
         self.meta = MetaData()
         self.meta.reflect(bind=self.engine)
@@ -51,6 +53,42 @@ class Sqlite3(DataStore):
         self.transactions = self.meta.tables["transactions"]
         self.plaid_accounts = self.meta.tables["plaid_accounts"]
         self.accounts = self.meta.tables["accounts"]
+
+    @staticmethod
+    def __apply_migrations(conn):
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            """
+        )
+
+        migrations_dir = SCHEMA_DIR / "migrations"
+        if not migrations_dir.is_dir():
+            return
+
+        migration_guards = {
+            "001_add_plaid_cursor.sql": lambda c: "cursor"
+            not in {row[1] for row in c.execute("PRAGMA table_info(plaid_accounts)")}
+        }
+
+        for path in sorted(migrations_dir.glob("*.sql")):
+            name = path.name
+            already_applied = conn.execute(
+                "SELECT 1 FROM migrations WHERE name = ?", (name,)
+            ).fetchone()
+            if already_applied:
+                continue
+
+            guard = migration_guards.get(name)
+            if guard and not guard(conn):
+                conn.execute("INSERT INTO migrations (name) VALUES (?)", (name,))
+                continue
+
+            conn.executescript(path.read_text())
+            conn.execute("INSERT INTO migrations (name) VALUES (?)", (name,))
 
     @staticmethod
     def __rows_to_transaction_views(rows: Any) -> list[TransactionView]:
