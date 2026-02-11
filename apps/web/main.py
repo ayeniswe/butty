@@ -1,9 +1,10 @@
 # MARK: Imports
 import csv
 import os
+import threading
 from io import StringIO
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -33,18 +34,51 @@ from core.utils import cents_to_dollars, derive_month_context
 
 def resolve_db_path(db_path: Path | None = None) -> Path:
     env_path = os.getenv("BUTTY_DB_PATH")
-    raw = db_path or env_path
+    raw = db_path or env_path or (Path.cwd() / "butty.sqlite")
 
     path = Path(raw).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.resolve()
 
 
+def _seconds_until_next_friday_3pm(now: datetime | None = None) -> float:
+    current = now or datetime.now()
+    target = current.replace(hour=15, minute=0, second=0, microsecond=0)
+
+    days_ahead = (4 - current.weekday()) % 7
+    if days_ahead == 0 and current >= target:
+        days_ahead = 7
+
+    target = target + timedelta(days=days_ahead)
+    return max((target - current).total_seconds(), 0)
+
+
+def _start_weekly_plaid_sync_thread(service: Service):
+    stop_event = threading.Event()
+
+    def run_sync_loop():
+        while not stop_event.is_set():
+            wait_seconds = _seconds_until_next_friday_3pm()
+            interrupted = stop_event.wait(wait_seconds)
+            if interrupted:
+                break
+            service.sync_all_transactions()
+
+    thread = threading.Thread(target=run_sync_loop, daemon=True, name="plaid-sync")
+    thread.start()
+    return stop_event, thread
+
+
 @asynccontextmanager
 async def startup(app: FastAPI):
     db_path = resolve_db_path(getattr(app.state, "database_path", None))
     app.state.service = Service(Sqlite3(db_path))
-    yield
+    stop_event, sync_thread = _start_weekly_plaid_sync_thread(app.state.service)
+    try:
+        yield
+    finally:
+        stop_event.set()
+        sync_thread.join(timeout=1)
 
 
 app = FastAPI(title="Budget Dashboard", lifespan=startup)

@@ -316,20 +316,36 @@ class Service:
         # Any APPLE CARDS will not be processed here but rather
         # elsewhere in own domain
 
-        for account in self.store.retrieve_plaid_accounts():
-            p = self.store.select_plaid_account(account.id)
-            acc = self.store.select_account_by_id(account.id)
-            account_type = acc.account_type
+        accounts = self.store.retrieve_accounts()
 
-            for transaction in self.plaid_client.retrieve_transactions(p.token):
+        for plaid_account in self.store.retrieve_plaid_accounts():
+            p = self.store.select_plaid_account(plaid_account.id)
+            plaid_item_accounts = {
+                account.external_id: account
+                for account in accounts
+                if account.plaid_id == plaid_account.id
+            }
+
+            transactions, next_cursor = self.plaid_client.retrieve_transactions(
+                p.token, p.cursor
+            )
+            self.store.update_plaid_account_cursor(plaid_account.id, next_cursor)
+
+            for transaction in transactions:
+                account = plaid_item_accounts.get(transaction.account_id)
+                if not account:
+                    continue
+
                 # Depends on enrichment and not guranteed but ideal
                 merchant_name = transaction.merchant_name
                 name = merchant_name if merchant_name else transaction.name
 
                 amount = abs(transaction.amount)
                 date = transaction.date
-                direction = derive_direction(
-                    amount, account_type == TransactionType.CREDIT
+                direction = (
+                    TransactionDirection.OUT
+                    if transaction.amount > 0
+                    else TransactionDirection.IN
                 )
                 # NOTE
                 # All transactions should be stored as cents

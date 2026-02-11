@@ -18,10 +18,11 @@ def test_insert_plaid_account(db: sqlite3.Connection):
         ["test-token-123"],
     )
 
-    row = db.execute("SELECT token FROM plaid_accounts").fetchone()
+    row = db.execute("SELECT token, cursor FROM plaid_accounts").fetchone()
 
     assert row is not None
     assert row[0] == "test-token-123"
+    assert row[1] is None
 
 
 def test_select_plaid_account_by_id(db: sqlite3.Connection):
@@ -34,13 +35,23 @@ def test_select_plaid_account_by_id(db: sqlite3.Connection):
     plaid_id = row[0]
 
     selected = db.execute(
-        "SELECT id, token FROM plaid_accounts WHERE id = ?",
+        "SELECT id, token, cursor FROM plaid_accounts WHERE id = ?",
         (plaid_id,),
     ).fetchone()
 
     assert selected is not None
     assert selected[0] == plaid_id
     assert selected[1] == "token-abc"
+    assert selected[2] is None
+
+
+def test_cursor_can_be_updated(db: sqlite3.Connection):
+    db.execute("INSERT INTO plaid_accounts (token, cursor) VALUES (?, ?)", ["abc", None])
+
+    db.execute("UPDATE plaid_accounts SET cursor = ? WHERE id = 1", ["cursor-xyz"])
+
+    row = db.execute("SELECT cursor FROM plaid_accounts WHERE id = 1").fetchone()
+    assert row[0] == "cursor-xyz"
 
 
 def test_get_all_plaid_accounts(db: sqlite3.Connection):

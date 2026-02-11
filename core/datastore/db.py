@@ -34,6 +34,11 @@ class Sqlite3(DataStore):
             conn.executescript(open("schema/budgets_tags.sql").read())
             conn.executescript(open("schema/transactions.sql").read())
             conn.executescript(open("schema/plaid_accounts.sql").read())
+            plaid_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(plaid_accounts)")
+            }
+            if "cursor" not in plaid_columns:
+                conn.execute("ALTER TABLE plaid_accounts ADD COLUMN cursor TEXT")
             conn.executescript(open("schema/accounts.sql").read())
             conn.executescript(open("schema/budgets_transactions.sql").read())
 
@@ -280,7 +285,9 @@ class Sqlite3(DataStore):
     # MARK: - Plaid Accounts
     def insert_plaid_account(self, token: str) -> int:
         with self.engine.begin() as conn:
-            result = conn.execute(insert(self.plaid_accounts).values(token=token))
+            result = conn.execute(
+                insert(self.plaid_accounts).values(token=token, cursor=None)
+            )
             return result.inserted_primary_key[0]
 
     def delete_plaid_account(self, id: int):
@@ -298,6 +305,14 @@ class Sqlite3(DataStore):
     def retrieve_plaid_accounts(self) -> list[PlaidAccount]:
         with self.engine.begin() as conn:
             return conn.execute(select(self.plaid_accounts)).fetchall()
+
+    def update_plaid_account_cursor(self, id: int, cursor: str | None):
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(self.plaid_accounts)
+                .where(self.plaid_accounts.c.id == id)
+                .values(cursor=cursor)
+            )
 
     # MARK: - Accounts
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:

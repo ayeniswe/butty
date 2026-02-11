@@ -104,6 +104,9 @@ class DataStore(ABC):
     @abstractmethod
     def retrieve_plaid_accounts(self) -> list[PlaidAccount]: ...
 
+    @abstractmethod
+    def update_plaid_account_cursor(self, id: int, cursor: str | None): ...
+
     # -------- Accounts --------
     @abstractmethod
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None: ...

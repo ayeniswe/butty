@@ -22,6 +22,7 @@ from core.service import Service
 class FakePlaid:
     def __init__(self):
         self.link_token_called = False
+        self.retrieve_transactions_calls = []
 
     def create_link(self):
         self.link_token_called = True
@@ -38,20 +39,31 @@ class FakePlaid:
             PlaidAccountBase("acc2", "Credit", "finger2", "credit", 800),
         ]
 
-    def retrieve_transactions(self, access_token: str):
+    def retrieve_transactions(self, access_token: str, cursor: str | None = None):
+        self.retrieve_transactions_calls.append((access_token, cursor))
+
         class Txn:
-            def __init__(self, name, merchant, amount, date, transaction_id):
+            def __init__(
+                self, name, merchant, amount, date, transaction_id, account_id
+            ):
                 self.name = name
                 self.merchant_name = merchant
                 self.amount = amount
                 self.date = date
                 self.transaction_id = transaction_id
+                self.account_id = account_id
 
         now = datetime.datetime(2023, 1, 15)
+        if access_token == "token-1":
+            return [
+                Txn("Merchant A", None, 2500, now, "t-1", "plaid-credit-acc"),
+                Txn("Merchant B", "Store B", -500, now, "t-2", "plaid-credit-acc"),
+            ], "cursor-1-new"
+
         return [
-            Txn("Merchant A", None, 2500, now, "t-1"),
-            Txn("Merchant B", "Store B", -500, now, "t-2"),
-        ]
+            Txn("Rent", "Landlord", 1200, now, "t-3", "plaid-checking-acc"),
+            Txn("Payroll", None, -4500, now, "t-4", "plaid-checking-acc"),
+        ], "cursor-2-new"
 
 
 class FakeStore:
@@ -67,23 +79,36 @@ class FakeStore:
         self.budget_updates: list[PartialBudget] = []
         self.selected_budget_id: int | None = None
         self.deleted_budget_transactions = []
-        self.plaid_accounts = [PlaidAccount(1, "token-1")]
+        self.plaid_accounts = [
+            PlaidAccount(1, "token-1", "cursor-1-old"),
+            PlaidAccount(2, "token-2", "cursor-2-old"),
+        ]
         self.accounts_by_id = {
             1: Account(
                 id=1,
-                external_id="plaid-acc",
+                external_id="plaid-credit-acc",
                 account_type=TransactionType.CREDIT,
                 source=TransactionSource.PLAID,
                 name="Credit Card",
                 balance=0,
                 plaid_id=1,
-            )
+            ),
+            2: Account(
+                id=2,
+                external_id="plaid-checking-acc",
+                account_type=TransactionType.DEPOSITORY,
+                source=TransactionSource.PLAID,
+                name="Checking",
+                balance=0,
+                plaid_id=2,
+            ),
         }
         self.tag_assignments = []
         self.budget_tags = []
         self.plaid_inserted_token = None
         self.inserted_accounts: list[PartialAccount] = []
         self.tags = [{"id": "1"}, {"id": "2"}]
+        self.updated_plaid_cursors = []
 
     def insert_budget(self, name, allocated, created_at=None):
         self.inserted_budgets.append((name, allocated, created_at))
@@ -181,7 +206,10 @@ class FakeStore:
         return self.plaid_accounts
 
     def select_plaid_account(self, account_id: int):
-        return self.plaid_accounts[0]
+        for plaid_account in self.plaid_accounts:
+            if plaid_account.id == account_id:
+                return plaid_account
+        raise IndexError("Plaid account not found")
 
     def select_account_by_id(self, account_id: int):
         return self.accounts_by_id[account_id]
@@ -214,6 +242,9 @@ class FakeStore:
 
     def retrieve_accounts(self):
         return list(self.accounts_by_id.values())
+
+    def update_plaid_account_cursor(self, id: int, cursor: str | None):
+        self.updated_plaid_cursors.append((id, cursor))
 
     def insert_plaid_account(self, access_token: str):
         self.plaid_inserted_token = access_token
@@ -355,9 +386,29 @@ def test_transaction_creation_and_assignment(service):
 def test_plaid_sync(service):
     service.sync_all_transactions()
 
-    assert len(service.store.transactions) == 2
+    assert len(service.store.transactions) == 4
     names = [t.name for t in service.store.transactions]
     assert "Store B" in names
+    transactions_by_external_id = {
+        transaction.external_id: transaction for transaction in service.store.transactions
+    }
+
+    assert (
+        transactions_by_external_id["t-1"].direction == TransactionDirection.OUT
+    )
+    assert transactions_by_external_id["t-3"].account_id == 2
+    assert (
+        transactions_by_external_id["t-3"].direction == TransactionDirection.OUT
+    )
+    assert transactions_by_external_id["t-4"].direction == TransactionDirection.IN
+    assert service.plaid_client.retrieve_transactions_calls == [
+        ("token-1", "cursor-1-old"),
+        ("token-2", "cursor-2-old"),
+    ]
+    assert service.store.updated_plaid_cursors == [
+        (1, "cursor-1-new"),
+        (2, "cursor-2-new"),
+    ]
 
 
 def test_apple_sync(service):

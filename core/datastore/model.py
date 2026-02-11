@@ -93,6 +93,7 @@ class Tag:
 class PlaidAccount:
     id: int
     token: str
+    cursor: str | None = None
 
 
 @dataclass(frozen=True)

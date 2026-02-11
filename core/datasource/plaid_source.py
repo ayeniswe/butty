@@ -85,10 +85,13 @@ class Plaid:
         exchange_response = self.client.item_public_token_exchange(exchange_request)
         return exchange_response["access_token"]
 
-    def retrieve_transactions(self, access_token: str) -> list[Transaction]:
-        request = TransactionsSyncRequest(access_token=access_token)
+    def retrieve_transactions(
+        self, access_token: str, cursor: str | None = None
+    ) -> tuple[list[Transaction], str | None]:
+        request = TransactionsSyncRequest(access_token=access_token, cursor=cursor)
         response = self.client.transactions_sync(request)
         transactions = response["added"]
+        next_cursor = response.get("next_cursor")
 
         while response["has_more"]:
             request = TransactionsSyncRequest(
@@ -96,8 +99,9 @@ class Plaid:
             )
             response = self.client.transactions_sync(request)
             transactions += response["added"]
+            next_cursor = response.get("next_cursor", next_cursor)
 
-        return transactions
+        return transactions, next_cursor
 
     def retrieve_accounts(self, access_token: str) -> list[PlaidAccountBase]:
         request = AccountsGetRequest(access_token=access_token)
