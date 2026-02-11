@@ -186,7 +186,7 @@ sys.modules.update(
 def patch_plaid_dependencies(monkeypatch):
     monkeypatch.setenv("ENV", "sandbox")
     monkeypatch.setenv("PLAID_CLIENT", "client")
-    monkeypatch.setenv("PLAID_SANDBOX_SECRET", "sandbox-secret")
+    monkeypatch.setenv("PLAID_SECRET", "sandbox-secret")
 
     monkeypatch.setattr(plaid_source, "Environment", DummyEnvironment)
     monkeypatch.setattr(plaid_source, "Configuration", DummyConfiguration)
