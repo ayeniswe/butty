@@ -22,10 +22,9 @@ services:
     environment:
       BUTTY_DB_PATH: /data/butty.dev.db
     volumes:
-      # - butty_data_dev:/data
-      - .:/app
+      - butty_data_dev:/data
     restart: unless-stopped
-    
+
 volumes:
   butty_data:
-  # butty_data_dev:
+  butty_data_dev:
