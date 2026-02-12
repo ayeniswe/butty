@@ -331,6 +331,7 @@ class Service:
             )
             self.store.update_plaid_account_cursor(plaid_account.id, next_cursor)
 
+            touched_budgets: set[int] = set()
             for transaction in transactions:
                 account = plaid_item_accounts.get(transaction.account_id)
                 if not account:
@@ -349,7 +350,7 @@ class Service:
                 )
                 # NOTE
                 # All transactions should be stored as cents
-                self.store.insert_transaction(
+                transaction_id = self.store.insert_transaction(
                     PartialTransaction(
                         name,
                         amount,
@@ -362,6 +363,26 @@ class Service:
                         occurred_at=date,
                     )
                 )
+
+                category = getattr(transaction, "personal_finance_category", None)
+                detailed = getattr(category, "detailed", None) if category else None
+                primary = getattr(category, "primary", None) if category else None
+                if not detailed or not primary:
+                    continue
+
+                self.store.upsert_plaid_category(primary, detailed)
+                if transaction_id is None:
+                    continue
+
+                budget_id = self.store.select_budget_id_by_plaid_category(detailed)
+                if not budget_id:
+                    continue
+
+                self.store.insert_budget_transaction(budget_id, transaction_id)
+                touched_budgets.add(budget_id)
+
+            for budget_id in touched_budgets:
+                self.refresh_budget_spent(budget_id)
 
     # MARK: Transactions (Apple Card Integration)
 
@@ -435,6 +456,27 @@ class Service:
 
     def unassign_tag_from_budget(self, budget_id: int, tag_id: int):
         self.store.delete_budget_tag(budget_id, tag_id)
+
+    # MARK: - Plaid Category Mappings
+
+    def get_plaid_categories(self):
+        return self.store.retrieve_plaid_categories()
+
+    def get_budget_plaid_category_mappings(self, budget_id: int):
+        return self.store.retrieve_budget_plaid_category_mappings(budget_id)
+
+    def set_budget_plaid_category_mappings(self, budget_id: int, mapped_categories: list[str]):
+        category_ids = []
+        for encoded_category in mapped_categories:
+            if not encoded_category:
+                continue
+            primary, _, detailed = encoded_category.partition(":")
+            if not primary or not detailed:
+                continue
+            category_ids.append(self.store.upsert_plaid_category(primary, detailed))
+
+        deduped_category_ids = list(dict.fromkeys(category_ids))
+        self.store.replace_budget_plaid_category_mappings(budget_id, deduped_category_ids)
 
     # MARK: - Accounts
 

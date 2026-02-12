@@ -556,6 +556,50 @@ def tag_search(
     )
 
 
+@budget_router.get("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/budget/plaid_mappings.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            **_month_context(month, year),
+        },
+    )
+
+
+@budget_router.post("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_update_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+    plaid_categories: list[str] = Form(default=[]),
+) -> HTMLResponse:
+    service.set_budget_plaid_category_mappings(id, plaid_categories)
+
+    return templates.TemplateResponse(
+        "partials/budget/plaid_mappings.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            "saved": True,
+            **_month_context(month, year),
+        },
+    )
+
+
 # MARK: Transactions
 
 

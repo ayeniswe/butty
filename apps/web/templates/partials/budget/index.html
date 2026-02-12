@@ -63,6 +63,11 @@
             hx-get="/budgets/{{ id }}/tags?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
             hx-target="#budget-item-details-container"
             hx-swap="innerHTML">Tags</h4>
+        <h4 class="budget-subheader__tab"
+            hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
+            hx-get="/budgets/{{ id }}/plaid-mappings?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-target="#budget-item-details-container"
+            hx-swap="innerHTML">Plaid Mappings</h4>
     </div>
     <div class="budget-item-details-container"
          id="budget-item-details-container"

@@ -116,3 +116,20 @@ class PartialAccount:
     balance: int
     fingerprint: str
     plaid_id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlaidCategory:
+    id: int
+    primary: str
+    detailed: str
+
+
+@dataclass(frozen=True)
+class PlaidCategoryMapping:
+    id: int
+    budget_id: int
+    budget_name: str
+    plaid_category_id: int
+    plaid_primary: str
+    plaid_detailed: str

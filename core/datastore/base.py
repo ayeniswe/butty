@@ -8,6 +8,8 @@ from .model import (
     PartialBudget,
     PartialTransaction,
     PlaidAccount,
+    PlaidCategory,
+    PlaidCategoryMapping,
     Tag,
     Transaction,
     TransactionView,
@@ -106,6 +108,26 @@ class DataStore(ABC):
 
     @abstractmethod
     def update_plaid_account_cursor(self, id: int, cursor: str | None): ...
+
+    # -------- Plaid Personal Finance Categories --------
+    @abstractmethod
+    def upsert_plaid_category(self, primary: str, detailed: str) -> int: ...
+
+    @abstractmethod
+    def retrieve_plaid_categories(self) -> list[PlaidCategory]: ...
+
+    @abstractmethod
+    def replace_budget_plaid_category_mappings(
+        self, budget_id: int, plaid_category_ids: list[int]
+    ): ...
+
+    @abstractmethod
+    def retrieve_budget_plaid_category_mappings(
+        self, budget_id: int
+    ) -> list[PlaidCategoryMapping]: ...
+
+    @abstractmethod
+    def select_budget_id_by_plaid_category(self, detailed: str) -> int | None: ...
 
     # -------- Accounts --------
     @abstractmethod

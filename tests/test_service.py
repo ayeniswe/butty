@@ -44,7 +44,7 @@ class FakePlaid:
 
         class Txn:
             def __init__(
-                self, name, merchant, amount, date, transaction_id, account_id
+                self, name, merchant, amount, date, transaction_id, account_id, category
             ):
                 self.name = name
                 self.merchant_name = merchant
@@ -52,17 +52,23 @@ class FakePlaid:
                 self.date = date
                 self.transaction_id = transaction_id
                 self.account_id = account_id
+                self.personal_finance_category = category
+
+        class Category:
+            def __init__(self, primary, detailed):
+                self.primary = primary
+                self.detailed = detailed
 
         now = datetime.datetime(2023, 1, 15)
         if access_token == "token-1":
             return [
-                Txn("Merchant A", None, 2500, now, "t-1", "plaid-credit-acc"),
-                Txn("Merchant B", "Store B", -500, now, "t-2", "plaid-credit-acc"),
+                Txn("Merchant A", None, 2500, now, "t-1", "plaid-credit-acc", Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_RESTAURANT")),
+                Txn("Merchant B", "Store B", -500, now, "t-2", "plaid-credit-acc", Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_COFFEE")),
             ], "cursor-1-new"
 
         return [
-            Txn("Rent", "Landlord", 1200, now, "t-3", "plaid-checking-acc"),
-            Txn("Payroll", None, -4500, now, "t-4", "plaid-checking-acc"),
+            Txn("Rent", "Landlord", 1200, now, "t-3", "plaid-checking-acc", Category("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT")),
+            Txn("Payroll", None, -4500, now, "t-4", "plaid-checking-acc", Category("INCOME", "INCOME_WAGES")),
         ], "cursor-2-new"
 
 
@@ -109,6 +115,9 @@ class FakeStore:
         self.inserted_accounts: list[PartialAccount] = []
         self.tags = [{"id": "1"}, {"id": "2"}]
         self.updated_plaid_cursors = []
+        self.plaid_categories = []
+        self.plaid_mappings_by_budget: dict[int, list[int]] = {}
+        self.plaid_category_lookup: dict[str, int] = {}
 
     def insert_budget(self, name, allocated, created_at=None):
         self.inserted_budgets.append((name, allocated, created_at))
@@ -245,6 +254,51 @@ class FakeStore:
 
     def update_plaid_account_cursor(self, id: int, cursor: str | None):
         self.updated_plaid_cursors.append((id, cursor))
+
+    def upsert_plaid_category(self, primary: str, detailed: str):
+        if detailed in self.plaid_category_lookup:
+            return self.plaid_category_lookup[detailed]
+        category_id = len(self.plaid_categories) + 1
+        category = type("Cat", (), {"id": category_id, "primary": primary, "detailed": detailed})
+        self.plaid_categories.append(category)
+        self.plaid_category_lookup[detailed] = category_id
+        return category_id
+
+    def retrieve_plaid_categories(self):
+        return self.plaid_categories
+
+    def replace_budget_plaid_category_mappings(self, budget_id: int, plaid_category_ids: list[int]):
+        self.plaid_mappings_by_budget[budget_id] = list(plaid_category_ids)
+
+    def retrieve_budget_plaid_category_mappings(self, budget_id: int):
+        mapped_ids = set(self.plaid_mappings_by_budget.get(budget_id, []))
+        result = []
+        for category in self.plaid_categories:
+            if category.id not in mapped_ids:
+                continue
+            mapping = type(
+                "Mapping",
+                (),
+                {
+                    "id": category.id,
+                    "budget_id": budget_id,
+                    "budget_name": "",
+                    "plaid_category_id": category.id,
+                    "plaid_primary": category.primary,
+                    "plaid_detailed": category.detailed,
+                },
+            )
+            result.append(mapping)
+        return result
+
+    def select_budget_id_by_plaid_category(self, detailed: str):
+        category_id = self.plaid_category_lookup.get(detailed)
+        if not category_id:
+            return None
+        for budget_id, mapped_ids in self.plaid_mappings_by_budget.items():
+            if category_id in mapped_ids:
+                return budget_id
+        return None
 
     def insert_plaid_account(self, access_token: str):
         self.plaid_inserted_token = access_token
@@ -409,6 +463,7 @@ def test_plaid_sync(service):
         (1, "cursor-1-new"),
         (2, "cursor-2-new"),
     ]
+    assert len(service.store.plaid_categories) == 4
 
 
 def test_apple_sync(service):
@@ -648,3 +703,18 @@ def test_assign_transaction_to_budget_parses_string_date(service):
     service.assign_transaction_to_budget(1, 0, 9, 2023)
 
     assert service.store.inserted_budget_transactions == [(1, 0)]
+
+
+def test_set_budget_plaid_category_mappings_and_auto_assignment(service):
+    service.store.budgets = [
+        Budget(7, "Daily Ritual", 1000, 0, 0, datetime.datetime(2023, 1, 1))
+    ]
+
+    service.set_budget_plaid_category_mappings(
+        7, ["FOOD_AND_DRINK:FOOD_AND_DRINK_COFFEE"]
+    )
+    service.sync_all_transactions()
+
+    assert service.store.plaid_mappings_by_budget[7]
+    assert (7, 1) in service.store.inserted_budget_transactions
+
