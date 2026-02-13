@@ -1,3 +1,11 @@
+-- Ensure plaid_categories exists for FK even when loaded standalone in tests
+CREATE TABLE IF NOT EXISTS plaid_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    "primary" TEXT NOT NULL,
+    detailed TEXT NOT NULL UNIQUE,
+    UNIQUE("primary", detailed)
+);
+
 CREATE TABLE IF NOT EXISTS
     transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -9,5 +17,7 @@ CREATE TABLE IF NOT EXISTS
         account_id INTEGER NOT NULL,
         note TEXT NOT NULL DEFAULT '',
         fingerprint TEXT NOT NULL UNIQUE,
-        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        plaid_category_id INTEGER,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+        FOREIGN KEY (plaid_category_id) REFERENCES plaid_categories(id)
     );
