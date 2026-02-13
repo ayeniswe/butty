@@ -116,6 +116,7 @@ def _activity_context(
     service: Annotated[Service, Depends(get_service)],
     month: int | None = None,
     year: int | None = None,
+    plaid_notice: dict[str, str] | None = None,
 ) -> dict:
     mth_ctx = _month_context(month, year)
     recent_transactions = service.get_all_recent_transactions(
@@ -128,6 +129,7 @@ def _activity_context(
         "transactions": transactions,
         "accounts": accounts,
         "budgets": service.get_all_budgets(mth_ctx["current_month"], mth_ctx["year"]),
+        "plaid_notice": plaid_notice,
         **mth_ctx,
     }
 
@@ -137,12 +139,13 @@ def _explorer_response(
     service: Annotated[Service, Depends(get_service)],
     month: int | None = None,
     year: int | None = None,
+    plaid_notice: dict[str, str] | None = None,
 ):
     return templates.TemplateResponse(
         "partials/explorer/index.html",
         {
             "request": request,
-            **_activity_context(service, month, year),
+            **_activity_context(service, month, year, plaid_notice),
             **_base_context(service),
         },
     )
@@ -735,9 +738,42 @@ def create_account_by_plaid(
     service: Annotated[Service, Depends(get_service)],
     public_token: str = Form(...),
 ) -> HTMLResponse:
-    service.create_accounts_by_plaid(public_token)
-    service.sync_all_transactions()
-    return _explorer_response(request, service)
+    link_result = service.create_accounts_by_plaid(public_token)
+
+    linked_new_accounts = int(link_result["linked_new_accounts"])
+    duplicate_accounts = int(link_result["duplicate_accounts"])
+    removed_duplicate_item = bool(link_result["removed_duplicate_item"])
+
+    if linked_new_accounts > 0:
+        service.sync_all_transactions()
+
+    if linked_new_accounts > 0 and duplicate_accounts > 0:
+        plaid_notice = {
+            "level": "success",
+            "message": (
+                f"Linked {linked_new_accounts} new account(s). "
+                f"Skipped {duplicate_accounts} duplicate account(s)."
+            ),
+        }
+    elif linked_new_accounts > 0:
+        plaid_notice = {
+            "level": "success",
+            "message": f"Linked {linked_new_accounts} new account(s).",
+        }
+    else:
+        plaid_notice = {
+            "level": "warning",
+            "message": (
+                "This institution is already linked. "
+                + (
+                    "No duplicate account was added and the duplicate link was removed."
+                    if removed_duplicate_item
+                    else "No duplicate account was added."
+                )
+            ),
+        }
+
+    return _explorer_response(request, service, plaid_notice=plaid_notice)
 
 
 # MARK: Router Registration

@@ -10,6 +10,7 @@ try:  # pragma: no cover - import guard exercised by tests
     from plaid.model.item_public_token_exchange_request import (
         ItemPublicTokenExchangeRequest,
     )
+    from plaid.model.item_remove_request import ItemRemoveRequest
     from plaid.model.link_token_create_request import LinkTokenCreateRequest
     from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
     from plaid.model.products import Products
@@ -23,6 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by tests
     AccountsGetRequest = None
     CountryCode = None
     ItemPublicTokenExchangeRequest = None
+    ItemRemoveRequest = None
     LinkTokenCreateRequest = None
     LinkTokenCreateRequestUser = None
     Products = None
@@ -47,6 +49,7 @@ class Plaid:
             LinkTokenCreateRequestUser,
             Products,
             TransactionsSyncRequest,
+            ItemRemoveRequest,
         ):
             raise ImportError(
                 "Plaid SDK is required. Install the 'plaid-python' package to use this datasource."
@@ -82,6 +85,11 @@ class Plaid:
         exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
         exchange_response = self.client.item_public_token_exchange(exchange_request)
         return exchange_response["access_token"]
+
+
+    def remove_financial_item(self, access_token: str):
+        request = ItemRemoveRequest(access_token=access_token)
+        self.client.item_remove(request)
 
     def retrieve_transactions(
         self, access_token: str, cursor: str | None = None

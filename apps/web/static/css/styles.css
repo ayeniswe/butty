@@ -774,6 +774,25 @@ textarea[readonly] {
   overflow: hidden;
 }
 
+.explorer-notice {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.explorer-notice--success {
+  background: #eafaf1;
+  color: #13673f;
+  border: 1px solid #b7efcf;
+}
+
+.explorer-notice--warning {
+  background: #fff8e8;
+  color: #915f05;
+  border: 1px solid #f3d9a3;
+}
+
 .budget-list.is-collapsed,
 #explorer-history.is-collapsed {
   gap: 0;

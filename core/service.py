@@ -449,7 +449,7 @@ class Service:
     def create_accounts_by_plaid(
         self,
         public_token: str,
-    ):
+    ) -> dict[str, int | bool]:
         access_token = self.plaid_client.add_financial_item(public_token)
         accounts = self.plaid_client.retrieve_accounts(access_token)
 
@@ -461,12 +461,14 @@ class Service:
         }
 
         new_accounts_data: list[dict] = []
+        duplicate_accounts_count = 0
 
         for account in accounts:
             fingerprint = account.fingerprint
 
             # Skip accounts that already exist (stable identity)
             if self.store.account_exists_by_fingerprint(fingerprint):
+                duplicate_accounts_count += 1
                 continue
 
             new_accounts_data.append(
@@ -480,9 +482,18 @@ class Service:
                 }
             )
 
-        # 🚫 No new accounts discovered → do NOT persist access token
+        # 🚫 No new accounts discovered → do NOT persist access token.
+        # Also remove the newly created Plaid Item to avoid ongoing costs.
         if not new_accounts_data:
-            return
+            if duplicate_accounts_count > 0:
+                self.plaid_client.remove_financial_item(access_token)
+
+            return {
+                "linked_new_accounts": 0,
+                "duplicate_accounts": duplicate_accounts_count,
+                "duplicate_item_detected": duplicate_accounts_count > 0,
+                "removed_duplicate_item": duplicate_accounts_count > 0,
+            }
 
         # ✅ At least one new account → now persist access token
         plaid_id = self.store.insert_plaid_account(access_token)
@@ -490,3 +501,10 @@ class Service:
         for data in new_accounts_data:
             data["plaid_id"] = plaid_id
             self.store.insert_account(PartialAccount(**data))
+
+        return {
+            "linked_new_accounts": len(new_accounts_data),
+            "duplicate_accounts": duplicate_accounts_count,
+            "duplicate_item_detected": False,
+            "removed_duplicate_item": False,
+        }
