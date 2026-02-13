@@ -1,9 +1,10 @@
 # MARK: Imports
 import csv
 import os
-from io import StringIO
+import threading
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
+from io import StringIO
 from pathlib import Path
 from typing import Annotated
 
@@ -33,18 +34,51 @@ from core.utils import cents_to_dollars, derive_month_context
 
 def resolve_db_path(db_path: Path | None = None) -> Path:
     env_path = os.getenv("BUTTY_DB_PATH")
-    raw = db_path or env_path
+    raw = db_path or env_path or (Path.cwd() / "butty.sqlite")
 
     path = Path(raw).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.resolve()
 
 
+def _seconds_until_next_friday_3pm(now: datetime | None = None) -> float:
+    current = now or datetime.now()
+    target = current.replace(hour=15, minute=0, second=0, microsecond=0)
+
+    days_ahead = (4 - current.weekday()) % 7
+    if days_ahead == 0 and current >= target:
+        days_ahead = 7
+
+    target = target + timedelta(days=days_ahead)
+    return max((target - current).total_seconds(), 0)
+
+
+def _start_weekly_plaid_sync_thread(service: Service):
+    stop_event = threading.Event()
+
+    def run_sync_loop():
+        while not stop_event.is_set():
+            wait_seconds = _seconds_until_next_friday_3pm()
+            interrupted = stop_event.wait(wait_seconds)
+            if interrupted:
+                break
+            service.sync_all_transactions()
+
+    thread = threading.Thread(target=run_sync_loop, daemon=True, name="plaid-sync")
+    thread.start()
+    return stop_event, thread
+
+
 @asynccontextmanager
 async def startup(app: FastAPI):
     db_path = resolve_db_path(getattr(app.state, "database_path", None))
     app.state.service = Service(Sqlite3(db_path))
-    yield
+    stop_event, sync_thread = _start_weekly_plaid_sync_thread(app.state.service)
+    try:
+        yield
+    finally:
+        stop_event.set()
+        sync_thread.join(timeout=1)
 
 
 app = FastAPI(title="Budget Dashboard", lifespan=startup)
@@ -133,6 +167,7 @@ def _budget_lines_response(
             **mth_ctx,
         },
     )
+
 
 # MARK: Root Routes
 
@@ -522,6 +557,53 @@ def tag_search(
     )
 
 
+@budget_router.get("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+    show_add: bool = Query(False),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/budget/categorization.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            "show_add": show_add,
+            **_month_context(month, year),
+        },
+    )
+
+
+@budget_router.post("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_update_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+    plaid_categories: list[str] = Form(default=[]),  # noqa: B008
+) -> HTMLResponse:
+    service.set_budget_plaid_category_mappings(id, plaid_categories)
+
+    return templates.TemplateResponse(
+        "partials/budget/categorization.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            "saved": True,
+            "show_add": False,
+            **_month_context(month, year),
+        },
+    )
+
+
 # MARK: Transactions
 
 
@@ -591,16 +673,18 @@ def transaction_remove_budget(
 def sync_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
-    service.sync_all_transactions()
-    return _explorer_response(request, service)
+    service.sync_all_transactions(month=month, year=year)
+    return _explorer_response(request, service, month, year)
 
 
 @transactions_router.post("/import", response_class=HTMLResponse)
 async def import_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
 ) -> HTMLResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="CSV file is required.")
@@ -610,7 +694,9 @@ async def import_transactions(
     if not reader.fieldnames:
         raise HTTPException(status_code=400, detail="CSV headers are missing.")
 
-    normalized_headers = {header.strip().lower(): header for header in reader.fieldnames}
+    normalized_headers = {
+        header.strip().lower(): header for header in reader.fieldnames
+    }
     expected = {
         "date": "Date",
         "description": "Description",
@@ -618,11 +704,7 @@ async def import_transactions(
         "account name": "Account Name",
         "budget": "Budget",
     }
-    missing = [
-        expected[key]
-        for key in expected
-        if key not in normalized_headers
-    ]
+    missing = [expected[key] for key in expected if key not in normalized_headers]
     if missing:
         raise HTTPException(
             status_code=400,
@@ -738,4 +820,9 @@ if __name__ == "__main__":
 
     dotenv.load_dotenv()
     app.state.database_path = resolve_db_path(args.db_path)
-    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=os.getenv("PORT", 8001))
+    uvicorn.run(
+        "apps.web.main:app",
+        host="0.0.0.0",
+        port=os.getenv("PORT", 8001),
+        reload=True if os.getenv("ENV", "dev") == "dev" else False,
+    )

@@ -27,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by tests
     LinkTokenCreateRequestUser = None
     Products = None
     TransactionsSyncRequest = None
-    Transaction = type("Transaction", (), {})
+    Transaction = None
 
 from core.datasource.model import PlaidAccountBase
 from core.utils import build_fingerprint
@@ -46,6 +46,7 @@ class Plaid:
             LinkTokenCreateRequest,
             LinkTokenCreateRequestUser,
             Products,
+            Transaction,
             TransactionsSyncRequest,
         ):
             raise ImportError(
@@ -57,9 +58,7 @@ class Plaid:
             host=Environment.Production if isProd else Environment.Sandbox,
             api_key={
                 "clientId": os.environ["PLAID_CLIENT"],
-                "secret": os.environ[
-                    "PLAID_PRODUCTION_SECRET" if isProd else "PLAID_SANDBOX_SECRET"
-                ],
+                "secret": os.environ["PLAID_SECRET"],
             },
         )
         self.client = PlaidApi(ApiClient(config))
@@ -85,10 +84,18 @@ class Plaid:
         exchange_response = self.client.item_public_token_exchange(exchange_request)
         return exchange_response["access_token"]
 
-    def retrieve_transactions(self, access_token: str) -> list[Transaction]:
-        request = TransactionsSyncRequest(access_token=access_token)
+    def retrieve_transactions(
+        self, access_token: str, cursor: str | None = None
+    ) -> tuple[list[Transaction], str | None]:
+        # Plaid rejects a None cursor; omit the field entirely on first sync
+        request_kwargs = {"access_token": access_token}
+        if cursor:
+            request_kwargs["cursor"] = cursor
+
+        request = TransactionsSyncRequest(**request_kwargs)
         response = self.client.transactions_sync(request)
         transactions = response["added"]
+        next_cursor = response.get("next_cursor")
 
         while response["has_more"]:
             request = TransactionsSyncRequest(
@@ -96,8 +103,9 @@ class Plaid:
             )
             response = self.client.transactions_sync(request)
             transactions += response["added"]
+            next_cursor = response.get("next_cursor", next_cursor)
 
-        return transactions
+        return transactions, next_cursor
 
     def retrieve_accounts(self, access_token: str) -> list[PlaidAccountBase]:
         request = AccountsGetRequest(access_token=access_token)

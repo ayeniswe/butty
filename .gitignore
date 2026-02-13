@@ -9,3 +9,5 @@ coverage.xml
 .ruff_cache
 seed.sql
 *.log
+.coverage
+.cache

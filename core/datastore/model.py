@@ -36,6 +36,7 @@ class Transaction:
     account_id: int
     external_id: str | None
     note: str | None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class TransactionView:
     budget_name: str | None
     external_id: str | None
     note: str | None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class PartialTransaction:
     note: str | None = None
     external_id: str | None = None
     occurred_at: datetime | None = None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +96,7 @@ class Tag:
 class PlaidAccount:
     id: int
     token: str
+    cursor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -115,3 +119,20 @@ class PartialAccount:
     balance: int
     fingerprint: str
     plaid_id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlaidCategory:
+    id: int
+    primary: str
+    detailed: str
+
+
+@dataclass(frozen=True)
+class PlaidCategoryMapping:
+    id: int
+    budget_id: int
+    budget_name: str
+    plaid_category_id: int
+    plaid_primary: str
+    plaid_detailed: str

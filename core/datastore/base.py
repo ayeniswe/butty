@@ -8,6 +8,8 @@ from .model import (
     PartialBudget,
     PartialTransaction,
     PlaidAccount,
+    PlaidCategory,
+    PlaidCategoryMapping,
     Tag,
     Transaction,
     TransactionView,
@@ -42,6 +44,9 @@ class DataStore(ABC):
     # -------- Transactions --------
     @abstractmethod
     def update_transaction_note(self, id: int, note: str): ...
+
+    @abstractmethod
+    def update_transaction_plaid_category(self, id: int, plaid_category_id: int): ...
 
     @abstractmethod
     def insert_transaction(self, obj: PartialTransaction) -> int | None: ...
@@ -104,6 +109,34 @@ class DataStore(ABC):
     @abstractmethod
     def retrieve_plaid_accounts(self) -> list[PlaidAccount]: ...
 
+    @abstractmethod
+    def update_plaid_account_cursor(self, id: int, cursor: str | None): ...
+
+    # -------- Plaid Personal Finance Categories --------
+    @abstractmethod
+    def upsert_plaid_category(self, primary: str, detailed: str) -> int: ...
+
+    @abstractmethod
+    def retrieve_plaid_categories(self) -> list[PlaidCategory]: ...
+
+    @abstractmethod
+    def replace_budget_plaid_category_mappings(
+        self, budget_id: int, plaid_category_ids: list[int]
+    ): ...
+
+    @abstractmethod
+    def copy_budget_plaid_category_mappings(
+        self, source_budget_id: int, target_budget_id: int
+    ): ...
+
+    @abstractmethod
+    def retrieve_budget_plaid_category_mappings(
+        self, budget_id: int
+    ) -> list[PlaidCategoryMapping]: ...
+
+    @abstractmethod
+    def select_budget_id_by_plaid_category(self, detailed: str) -> int | None: ...
+
     # -------- Accounts --------
     @abstractmethod
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None: ...
@@ -135,3 +168,8 @@ class DataStore(ABC):
 
     @abstractmethod
     def select_budget_id_for_transaction(self, transaction_id: int) -> int | None: ...
+
+    @abstractmethod
+    def select_budget_id_by_plaid_category_id(
+        self, plaid_category_id: int
+    ) -> int | None: ...

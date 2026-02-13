@@ -697,6 +697,7 @@ def test_insert_plaid_account(db: Sqlite3):
 
     assert row is not None
     assert row.token == "token-123"
+    assert row.cursor is None
 
 
 def test_select_plaid_account(db: Sqlite3):
@@ -707,6 +708,7 @@ def test_select_plaid_account(db: Sqlite3):
     assert account is not None
     assert account.id == 1
     assert account.token == "token-abc"
+    assert account.cursor is None
 
 
 def test_retrieve_plaid_accounts(db: Sqlite3):
@@ -720,6 +722,15 @@ def test_retrieve_plaid_accounts(db: Sqlite3):
     assert accounts[0].token == "t1"
     assert accounts[1].token == "t2"
     assert accounts[2].token == "t3"
+
+
+def test_update_plaid_account_cursor(db: Sqlite3):
+    db.insert_plaid_account("token")
+
+    db.update_plaid_account_cursor(1, "cursor-123")
+
+    account = db.select_plaid_account(1)
+    assert account.cursor == "cursor-123"
 
 
 def test_delete_plaid_account(db: Sqlite3):
