@@ -14,10 +14,10 @@ from core.datastore.model import (
     TransactionView,
 )
 from core.model import AppleTransaction
+from core.pfc_taxonomy import seed_plaid_categories_from_taxonomy
 from core.utils import (
     build_fingerprint,
     cents_to_dollars,
-    derive_direction,
     normalize,
 )
 
@@ -27,6 +27,11 @@ class Service:
     def __init__(self, store: DataStore):
         self.store = store
         self.plaid_client = Plaid()
+
+        # Ensure the Plaid PFC taxonomy is available for budget mapping.
+        # Errors are swallowed inside the helper; startup should proceed even
+        # without network access.
+        seed_plaid_categories_from_taxonomy(self.store)
 
         self.summary_card = {
             "status": "On Track",
@@ -84,11 +89,19 @@ class Service:
 
         for budget in past_budgets:
             if budget.name not in existing_names:
-                self.store.insert_budget(
+                new_budget_id = self.store.insert_budget(
                     budget.name,
                     cents_to_dollars(budget.amount_allocated),
                     datetime(year=year, month=month, day=1),
                 )
+                # Carry over plaid category mappings without touching the source budget
+                if (
+                    new_budget_id is None
+                    and hasattr(self.store, "inserted_budgets")
+                    and self.store.inserted_budgets
+                ):
+                    new_budget_id = len(self.store.inserted_budgets)
+                self.store.copy_budget_plaid_category_mappings(budget.id, new_budget_id)
 
     def delete_budget(self, id: int):
         self.store.delete_budget(id)
@@ -306,12 +319,15 @@ class Service:
         self.store.insert_budget_transaction(budget_id, transaction_id)
         self.refresh_budget_spent(budget_id)
 
-    def sync_all_transactions(self):
-        self.__sync_plaid_transactions()
+    def sync_all_transactions(self, month: int | None = None, year: int | None = None):
+        self.__sync_plaid_transactions(month=month, year=year)
+        self.__relink_transactions_to_mapped_budgets(month=month, year=year)
 
     # MARK: Transactions (Plaid Integration)
 
-    def __sync_plaid_transactions(self):
+    def __sync_plaid_transactions(
+        self, month: int | None = None, year: int | None = None
+    ):
         # NOTE
         # Any APPLE CARDS will not be processed here but rather
         # elsewhere in own domain
@@ -350,15 +366,16 @@ class Service:
                 )
                 # NOTE
                 # All transactions should be stored as cents
+                fingerprint = Service.__build_transaction_fingerprint(
+                    name, amount, direction, date
+                )
                 transaction_id = self.store.insert_transaction(
                     PartialTransaction(
                         name,
                         amount,
                         direction,
                         account.id,
-                        Service.__build_transaction_fingerprint(
-                            name, amount, direction, date
-                        ),
+                        fingerprint,
                         external_id=transaction.transaction_id,
                         occurred_at=date,
                     )
@@ -370,19 +387,111 @@ class Service:
                 if not detailed or not primary:
                     continue
 
-                self.store.upsert_plaid_category(primary, detailed)
+                category_id = self.store.upsert_plaid_category(primary, detailed)
                 if transaction_id is None:
-                    continue
+                    transaction_id = (
+                        self.store.select_transaction_id_by_fingerprint_or_external_id(
+                            fingerprint, transaction.transaction_id
+                        )
+                    )
+                    if transaction_id is None:
+                        continue
+
+                # Always persist category on the transaction for future reference
+                self.store.update_transaction_plaid_category(
+                    transaction_id, category_id
+                )
 
                 budget_id = self.store.select_budget_id_by_plaid_category(detailed)
-                if not budget_id:
+                if (
+                    budget_id
+                    and self.__occurs_in_month(date, month, year)
+                    and direction == TransactionDirection.OUT
+                    and self.__budget_in_scope(budget_id, month, year)
+                ):
+                    self.store.insert_budget_transaction(budget_id, transaction_id)
+                    touched_budgets.add(budget_id)
                     continue
 
-                self.store.insert_budget_transaction(budget_id, transaction_id)
-                touched_budgets.add(budget_id)
+                # Fallback: try primary-level match if detailed not mapped
+                if primary:
+                    budget_id = self.store.select_budget_id_by_plaid_category(primary)
+                    if (
+                        budget_id
+                        and self.__occurs_in_month(date, month, year)
+                        and direction == TransactionDirection.OUT
+                        and self.__budget_in_scope(budget_id, month, year)
+                    ):
+                        self.store.insert_budget_transaction(budget_id, transaction_id)
+                        touched_budgets.add(budget_id)
 
             for budget_id in touched_budgets:
                 self.refresh_budget_spent(budget_id)
+
+    def __relink_transactions_to_mapped_budgets(
+        self, month: int | None = None, year: int | None = None
+    ):
+        transactions = self.store.retrieve_transactions()
+        touched_budgets: set[int] = set()
+
+        for txn in transactions:
+            plaid_category_id = getattr(txn, "plaid_category_id", None)
+            if not plaid_category_id:
+                continue
+
+            txn_id = getattr(txn, "id", None)
+            if txn_id is None:
+                continue
+
+            budget_id = self.store.select_budget_id_by_plaid_category_id(
+                plaid_category_id
+            )
+            if not budget_id:
+                continue
+
+            already_mapped = self.store.select_budget_id_for_transaction(txn_id)
+            if already_mapped == budget_id:
+                continue
+
+            occurred_at = getattr(txn, "occurred_at", None)
+            if (
+                self.__occurs_in_month(occurred_at, month, year)
+                and txn.direction == TransactionDirection.OUT
+                and self.__budget_in_scope(budget_id, month, year)
+            ):
+                self.store.insert_budget_transaction(budget_id, txn_id)
+                touched_budgets.add(budget_id)
+
+        for budget_id in touched_budgets:
+            self.refresh_budget_spent(budget_id)
+
+    @staticmethod
+    def __occurs_in_month(
+        date: datetime | str | None, month: int | None, year: int | None
+    ) -> bool:
+        if month is None or year is None:
+            return True
+        if date is None:
+            return False
+        if isinstance(date, str):
+            date = datetime.fromisoformat(date)
+        return date.month == month and date.year == year
+
+    def __budget_in_scope(
+        self, budget_id: int, month: int | None, year: int | None
+    ) -> bool:
+        if month is None or year is None:
+            return True
+        try:
+            budget = self.store.select_budget(budget_id)
+        except Exception:
+            return False
+        if not budget or not getattr(budget, "created_at", None):
+            return False
+        created_at = budget.created_at
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        return created_at.month == month and created_at.year == year
 
     # MARK: Transactions (Apple Card Integration)
 
@@ -465,7 +574,9 @@ class Service:
     def get_budget_plaid_category_mappings(self, budget_id: int):
         return self.store.retrieve_budget_plaid_category_mappings(budget_id)
 
-    def set_budget_plaid_category_mappings(self, budget_id: int, mapped_categories: list[str]):
+    def set_budget_plaid_category_mappings(
+        self, budget_id: int, mapped_categories: list[str]
+    ):
         category_ids = []
         for encoded_category in mapped_categories:
             if not encoded_category:
@@ -476,7 +587,12 @@ class Service:
             category_ids.append(self.store.upsert_plaid_category(primary, detailed))
 
         deduped_category_ids = list(dict.fromkeys(category_ids))
-        self.store.replace_budget_plaid_category_mappings(budget_id, deduped_category_ids)
+        # If nothing selected, preserve existing mappings (avoid accidental clears when creating future budgets)
+        if not deduped_category_ids:
+            return
+        self.store.replace_budget_plaid_category_mappings(
+            budget_id, deduped_category_ids
+        )
 
     # MARK: - Accounts
 

@@ -4,9 +4,10 @@ __pycache__
 .vscode
 coverage.xml
 .DS_Store
-.env.*
+.env
 *.sqlite*
 .ruff_cache
 seed.sql
 *.log
 .coverage
+.cache

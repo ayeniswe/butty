@@ -36,6 +36,7 @@ class Transaction:
     account_id: int
     external_id: str | None
     note: str | None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class TransactionView:
     budget_name: str | None
     external_id: str | None
     note: str | None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class PartialTransaction:
     note: str | None = None
     external_id: str | None = None
     occurred_at: datetime | None = None
+    plaid_category_id: int | None = None
 
 
 @dataclass(frozen=True)

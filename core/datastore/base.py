@@ -46,6 +46,9 @@ class DataStore(ABC):
     def update_transaction_note(self, id: int, note: str): ...
 
     @abstractmethod
+    def update_transaction_plaid_category(self, id: int, plaid_category_id: int): ...
+
+    @abstractmethod
     def insert_transaction(self, obj: PartialTransaction) -> int | None: ...
 
     @abstractmethod
@@ -122,6 +125,11 @@ class DataStore(ABC):
     ): ...
 
     @abstractmethod
+    def copy_budget_plaid_category_mappings(
+        self, source_budget_id: int, target_budget_id: int
+    ): ...
+
+    @abstractmethod
     def retrieve_budget_plaid_category_mappings(
         self, budget_id: int
     ) -> list[PlaidCategoryMapping]: ...
@@ -160,3 +168,8 @@ class DataStore(ABC):
 
     @abstractmethod
     def select_budget_id_for_transaction(self, transaction_id: int) -> int | None: ...
+
+    @abstractmethod
+    def select_budget_id_by_plaid_category_id(
+        self, plaid_category_id: int
+    ) -> int | None: ...

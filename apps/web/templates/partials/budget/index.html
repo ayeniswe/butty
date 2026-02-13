@@ -1,6 +1,6 @@
 <div class="budget-list__items">
     <button class="pill pill--xsmall budget-back-button"
-            hx-get="/budgets?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-get="/budgets?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
             hx-target="#budget-lines-container"
             hx-swap="innerHTML">
         <span class="pill__content">
@@ -47,36 +47,50 @@
                 </svg>
                 Spent
             </label>
-            <div id="budget-summary-spent"
-                 class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
+            <div id="budget-summary-spent" class="budget-summary__readonly">${{ '%.0f' % ((spent or 0) / 100) }}</div>
         </div>
     </form>
     <div class="budget-subheader">
         <h4 class="budget-subheader__tab is-active"
             hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
-            hx-get="/budgets/{{ id }}/transactions?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-get="/budgets/{{ id }}/transactions?month={{ current_month }} {%- if year is not none -%}&year={{ year }}{%- endif -%} "
             hx-target="#budget-item-details-container"
             hx-trigger="load, click"
             hx-swap="innerHTML">Transactions</h4>
         <h4 class="budget-subheader__tab"
             hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
-            hx-get="/budgets/{{ id }}/tags?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-get="/budgets/{{ id }}/tags?month={{ current_month }} {%- if year is not none -%}&year={{ year }}{%- endif -%} "
             hx-target="#budget-item-details-container"
             hx-swap="innerHTML">Tags</h4>
         <h4 class="budget-subheader__tab"
             hx-on="click:document.querySelectorAll('.budget-subheader__tab').forEach(el => el.classList.remove('is-active')); this.classList.add('is-active')"
-            hx-get="/budgets/{{ id }}/plaid-mappings?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
+            hx-get="/budgets/{{ id }}/plaid-mappings?month={{ current_month }} {%- if year is not none -%}&year={{ year }}{%- endif -%} "
             hx-target="#budget-item-details-container"
-            hx-swap="innerHTML">Plaid Mappings</h4>
+            hx-swap="innerHTML">Categorization</h4>
     </div>
     <div class="budget-item-details-container"
          id="budget-item-details-container"
          hx-on="htmx:afterSwap: htmx.trigger(document.body, 'refresh-explorer')"></div>
     <button class="pill pill--flex pill--danger"
-            hx-delete="/budgets/{{ id }}?month={{ current_month }}{% if year is not none %}&year={{ year }}{% endif %}"
-            hx-target="#budget-lines-container"
-            {% if readonly %}disabled{% endif %}
-            hx-confirm="This will permanently delete this budget and its associations. This action cannot be undone. Are you sure?">
+            hx-delete="/budgets/{{ id }}?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}" hx-target="#budget-lines-container" {% if readonly %}disabled{% endif %} hx-confirm="
+            This
+            will
+            permanently
+            delete
+            this
+            budget
+            and
+            its
+            associations.
+            This
+            action
+            cannot
+            be
+            undone.
+            Are
+            you
+            sure
+            ">
         <span class="pill__content">Delete</span>
     </button>
 </div>

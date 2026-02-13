@@ -34,12 +34,8 @@ def test_plaid_mapping_requires_existing_budget_and_category(db: sqlite3.Connect
 
 
 def test_plaid_category_can_only_map_once(db: sqlite3.Connection):
-    db.execute(
-        "INSERT INTO budgets (name, amount_allocated) VALUES ('Coffee', 1000);"
-    )
-    db.execute(
-        "INSERT INTO budgets (name, amount_allocated) VALUES ('Cafe', 1000);"
-    )
+    db.execute("INSERT INTO budgets (name, amount_allocated) VALUES ('Coffee', 1000);")
+    db.execute("INSERT INTO budgets (name, amount_allocated) VALUES ('Cafe', 1000);")
     db.execute(
         "INSERT INTO plaid_categories (\"primary\", detailed) VALUES ('FOOD_AND_DRINK', 'FOOD_AND_DRINK_COFFEE');"
     )
@@ -47,8 +43,12 @@ def test_plaid_category_can_only_map_once(db: sqlite3.Connection):
     db.execute(
         "INSERT INTO plaid_category_mappings (budget_id, plaid_category_id) VALUES (1, 1);"
     )
+    db.execute(
+        "INSERT INTO plaid_category_mappings (budget_id, plaid_category_id) VALUES (2, 1);"
+    )
 
-    with pytest.raises(sqlite3.IntegrityError):
-        db.execute(
-            "INSERT INTO plaid_category_mappings (budget_id, plaid_category_id) VALUES (2, 1);"
-        )
+    rows = db.execute(
+        "SELECT budget_id FROM plaid_category_mappings WHERE plaid_category_id = 1 ORDER BY budget_id;"
+    ).fetchall()
+    # Multiple budgets can map to the same category; ensure both are stored.
+    assert [r[0] for r in rows] == [1, 2]
