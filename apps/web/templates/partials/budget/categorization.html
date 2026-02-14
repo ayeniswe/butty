@@ -1,0 +1,69 @@
+<section class="card card--stacked categorization">
+    <header class="card__header">
+        <div>
+            <strong>Budget categorization</strong>
+            <div class="text--muted">Auto-route incoming transactions by category.</div>
+        </div>
+        {% if saved %}<span class="badge">Saved</span>{% endif %}
+    </header>
+    <section class="categorization__current">
+        <div class="categorization__section-header">Active categories</div>
+        {% if mapped_categories %}
+            <div class="categorization__chip-column">
+                {% for mapping in mapped_categories %}<span class="chip chip--compact">{{ mapping.plaid_detailed }}</span>{% endfor %}
+            </div>
+        {% else %}
+            <p class="text--muted">No categories assigned yet.</p>
+        {% endif %}
+    </section>
+    <section class="categorization__section">
+        <div class="categorization__section-header">
+            <span>Add categories</span>
+            <button class="pill pill--ghost"
+                    type="button"
+                    hx-get="/budgets/{{ id }}/plaid-mappings?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}&show_add={{ not show_add }}"
+                    hx-target="#budget-item-details-container"
+                    hx-swap="innerHTML">
+                <span class="pill__content">
+                    {% if show_add %}
+                        Hide list
+                    {% else %}
+                        Show list
+                    {% endif %}
+                </span>
+            </button>
+        </div>
+        {% if show_add %}
+            <form class="categorization__controls"
+                  hx-post="/budgets/{{ id }}/plaid-mappings?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
+                  hx-target="#budget-item-details-container"
+                  hx-swap="innerHTML">
+                <div class="categorization__options">
+                    <div id="categorization-pills" class="categorization__tag-list">
+                        {% set selected = mapped_categories | map(attribute='plaid_detailed') | list %}
+                        {% for category in plaid_categories %}
+                            {% set encoded = category.primary ~ ':' ~ category.detailed %}
+                            <label class="categorization__tag">
+                                <input type="checkbox"
+                                       name="plaid_categories"
+                                       value="{{ encoded }}"
+                                       {% if category.detailed in selected %}checked{% endif %} />
+                                <span class="categorization__tag-text">{{ category.detailed }}</span>
+                                <span class="categorization__tag-meta">{{ category.primary }}</span>
+                                <span class="categorization__tag-check" aria-hidden="true">✓</span>
+                            </label>
+                        {% endfor %}
+                        {% if not plaid_categories %}
+                            <p class="text--muted">No categories yet. Sync transactions to populate options.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="categorization__actions">
+                    <button class="pill pill--primary" type="submit">
+                        <span class="pill__content">Save selection</span>
+                    </button>
+                </div>
+            </form>
+        {% endif %}
+    </section>
+</section>

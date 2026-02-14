@@ -560,6 +560,53 @@ def tag_search(
     )
 
 
+@budget_router.get("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+    show_add: bool = Query(False),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "partials/budget/categorization.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            "show_add": show_add,
+            **_month_context(month, year),
+        },
+    )
+
+
+@budget_router.post("/{id}/plaid-mappings", response_class=HTMLResponse)
+def budget_update_plaid_mappings(
+    request: Request,
+    id: int,
+    service: Annotated[Service, Depends(get_service)],
+    month: int = Query(...),
+    year: int | None = Query(None),
+    plaid_categories: list[str] = Form(default=[]),  # noqa: B008
+) -> HTMLResponse:
+    service.set_budget_plaid_category_mappings(id, plaid_categories)
+
+    return templates.TemplateResponse(
+        "partials/budget/categorization.html",
+        {
+            "request": request,
+            "id": id,
+            "plaid_categories": service.get_plaid_categories(),
+            "mapped_categories": service.get_budget_plaid_category_mappings(id),
+            "saved": True,
+            "show_add": False,
+            **_month_context(month, year),
+        },
+    )
+
+
 # MARK: Transactions
 
 
@@ -629,16 +676,18 @@ def transaction_remove_budget(
 def sync_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
+    month: int | None = Query(None),
+    year: int | None = Query(None),
 ) -> HTMLResponse:
-    service.sync_all_transactions()
-    return _explorer_response(request, service)
+    service.sync_all_transactions(month=month, year=year)
+    return _explorer_response(request, service, month, year)
 
 
 @transactions_router.post("/import", response_class=HTMLResponse)
 async def import_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
-    file: UploadFile = File(...),  # noqa B008
+    file: UploadFile = File(...),  # noqa: B008
 ) -> HTMLResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="CSV file is required.")
@@ -795,4 +844,9 @@ if __name__ == "__main__":
 
     dotenv.load_dotenv()
     app.state.database_path = resolve_db_path(args.db_path)
-    uvicorn.run("apps.web.main:app", host="0.0.0.0", port=os.getenv("PORT", 8001))
+    uvicorn.run(
+        "apps.web.main:app",
+        host="0.0.0.0",
+        port=os.getenv("PORT", 8001),
+        reload=True if os.getenv("ENV", "dev") == "dev" else False,
+    )

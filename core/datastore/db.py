@@ -13,6 +13,8 @@ from core.datastore.model import (
     PartialBudget,
     PartialTransaction,
     PlaidAccount,
+    PlaidCategory,
+    PlaidCategoryMapping,
     Tag,
     Transaction,
     TransactionView,
@@ -38,9 +40,11 @@ class Sqlite3(DataStore):
             conn.executescript(_load_sql("tags.sql"))
             conn.executescript(_load_sql("budgets.sql"))
             conn.executescript(_load_sql("budgets_tags.sql"))
+            conn.executescript(_load_sql("plaid_categories.sql"))
             conn.executescript(_load_sql("transactions.sql"))
             conn.executescript(_load_sql("plaid_accounts.sql"))
             conn.executescript(_load_sql("accounts.sql"))
+            conn.executescript(_load_sql("plaid_category_mappings.sql"))
             conn.executescript(_load_sql("budgets_transactions.sql"))
             self.__apply_migrations(conn)
 
@@ -53,6 +57,8 @@ class Sqlite3(DataStore):
         self.transactions = self.meta.tables["transactions"]
         self.plaid_accounts = self.meta.tables["plaid_accounts"]
         self.accounts = self.meta.tables["accounts"]
+        self.plaid_categories = self.meta.tables["plaid_categories"]
+        self.plaid_category_mappings = self.meta.tables["plaid_category_mappings"]
 
     @staticmethod
     def __apply_migrations(conn):
@@ -113,7 +119,7 @@ class Sqlite3(DataStore):
         name: str,
         amount_allocated: float,
         override_create_date: datetime | None = None,
-    ):
+    ) -> int:
         with self.engine.begin() as conn:
             values = {
                 "name": name,
@@ -121,7 +127,8 @@ class Sqlite3(DataStore):
             }
             if override_create_date:
                 values["created_at"] = override_create_date.isoformat()
-            conn.execute(insert(self.budgets).values(values))
+            result = conn.execute(insert(self.budgets).values(values))
+            return result.inserted_primary_key[0]
 
     def update_budget(self, obj: PartialBudget):
         with self.engine.begin() as conn:
@@ -140,6 +147,11 @@ class Sqlite3(DataStore):
 
     def delete_budget(self, id: int):
         with self.engine.begin() as conn:
+            conn.execute(
+                delete(self.plaid_category_mappings).where(
+                    self.plaid_category_mappings.c.budget_id == id
+                )
+            )
             conn.execute(delete(self.budgets).where(self.budgets.c.id == id))
 
     def select_budget(self, id: int) -> Budget:
@@ -175,6 +187,8 @@ class Sqlite3(DataStore):
                 values["occurred_at"] = obj.occurred_at.isoformat()
             if obj.note:
                 values["note"] = obj.note
+            if obj.plaid_category_id:
+                values["plaid_category_id"] = obj.plaid_category_id
             result = conn.execute(
                 insert(self.transactions).values(values).prefix_with("OR IGNORE")
             )
@@ -187,6 +201,14 @@ class Sqlite3(DataStore):
             conn.execute(
                 update(self.transactions)
                 .values(note=note)
+                .where(self.transactions.c.id == id)
+            )
+
+    def update_transaction_plaid_category(self, id: int, plaid_category_id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(self.transactions)
+                .values(plaid_category_id=plaid_category_id)
                 .where(self.transactions.c.id == id)
             )
 
@@ -367,6 +389,137 @@ class Sqlite3(DataStore):
                 .where(self.plaid_accounts.c.id == id)
                 .values(cursor=cursor)
             )
+
+    # MARK: - Plaid Categories
+    def upsert_plaid_category(self, primary: str, detailed: str) -> int:
+        with self.engine.begin() as conn:
+            existing = conn.execute(
+                select(self.plaid_categories.c.id)
+                .where(self.plaid_categories.c.primary == primary)
+                .where(self.plaid_categories.c.detailed == detailed)
+                .limit(1)
+            ).first()
+            if existing:
+                return existing.id
+
+            result = conn.execute(
+                insert(self.plaid_categories)
+                .values(primary=primary, detailed=detailed)
+                .prefix_with("OR IGNORE")
+            )
+            if (
+                result.inserted_primary_key
+                and result.inserted_primary_key[0] is not None
+            ):
+                return result.inserted_primary_key[0]
+
+            existing = conn.execute(
+                select(self.plaid_categories.c.id)
+                .where(self.plaid_categories.c.primary == primary)
+                .where(self.plaid_categories.c.detailed == detailed)
+                .limit(1)
+            ).first()
+            if not existing:
+                raise ValueError("Unable to upsert plaid category")
+            return existing.id
+
+    def retrieve_plaid_categories(self) -> list[PlaidCategory]:
+        with self.engine.begin() as conn:
+            return conn.execute(
+                select(self.plaid_categories).order_by(self.plaid_categories.c.detailed)
+            ).fetchall()
+
+    def replace_budget_plaid_category_mappings(
+        self, budget_id: int, plaid_category_ids: list[int]
+    ):
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(self.plaid_category_mappings).where(
+                    self.plaid_category_mappings.c.budget_id == budget_id
+                )
+            )
+            for category_id in plaid_category_ids:
+                conn.execute(
+                    insert(self.plaid_category_mappings)
+                    .values(budget_id=budget_id, plaid_category_id=category_id)
+                    .prefix_with("OR REPLACE")
+                )
+
+    def copy_budget_plaid_category_mappings(
+        self, source_budget_id: int, target_budget_id: int
+    ):
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(self.plaid_category_mappings.c.plaid_category_id).where(
+                    self.plaid_category_mappings.c.budget_id == source_budget_id
+                )
+            ).fetchall()
+            if not rows:
+                return
+            for (cat_id,) in rows:
+                conn.execute(
+                    insert(self.plaid_category_mappings).values(
+                        budget_id=target_budget_id, plaid_category_id=cat_id
+                    )
+                )
+
+    def retrieve_budget_plaid_category_mappings(
+        self, budget_id: int
+    ) -> list[PlaidCategoryMapping]:
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(
+                    self.plaid_category_mappings.c.id,
+                    self.plaid_category_mappings.c.budget_id,
+                    self.budgets.c.name.label("budget_name"),
+                    self.plaid_categories.c.id.label("plaid_category_id"),
+                    self.plaid_categories.c.primary.label("plaid_primary"),
+                    self.plaid_categories.c.detailed.label("plaid_detailed"),
+                )
+                .join(
+                    self.plaid_categories,
+                    self.plaid_category_mappings.c.plaid_category_id
+                    == self.plaid_categories.c.id,
+                )
+                .join(
+                    self.budgets,
+                    self.plaid_category_mappings.c.budget_id == self.budgets.c.id,
+                )
+                .where(self.plaid_category_mappings.c.budget_id == budget_id)
+                .order_by(self.plaid_categories.c.detailed)
+            ).fetchall()
+            return [PlaidCategoryMapping(**dict(row._mapping)) for row in rows]
+
+    def select_budget_id_by_plaid_category(self, category_key: str) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.plaid_category_mappings.c.budget_id)
+                .join(
+                    self.plaid_categories,
+                    self.plaid_category_mappings.c.plaid_category_id
+                    == self.plaid_categories.c.id,
+                )
+                .where(
+                    (self.plaid_categories.c.detailed == category_key)
+                    | (self.plaid_categories.c.primary == category_key)
+                )
+                .limit(1)
+            ).first()
+            return row.budget_id if row else None
+
+    def select_budget_id_by_plaid_category_id(
+        self, plaid_category_id: int
+    ) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.plaid_category_mappings.c.budget_id)
+                .where(
+                    self.plaid_category_mappings.c.plaid_category_id
+                    == plaid_category_id
+                )
+                .limit(1)
+            ).first()
+            return row.budget_id if row else None
 
     # MARK: - Accounts
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:

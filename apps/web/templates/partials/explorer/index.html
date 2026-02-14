@@ -27,7 +27,7 @@
     <div class="explorer-actions">
         <button id="explorer-sync-button"
                 class="pill pill--xsmall pill--accent"
-                hx-get="/transactions/sync"
+                hx-get="/transactions/sync?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
                 hx-target="#explorer-history"
                 hx-swap="innerHTML"
                 hx-indicator="#explorer-sync-icon">

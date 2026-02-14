@@ -29,7 +29,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by tests
     LinkTokenCreateRequestUser = None
     Products = None
     TransactionsSyncRequest = None
-    Transaction = type("Transaction", (), {})
+    Transaction = None
 
 from core.datasource.model import PlaidAccountBase
 from core.utils import build_fingerprint
@@ -48,6 +48,7 @@ class Plaid:
             LinkTokenCreateRequest,
             LinkTokenCreateRequestUser,
             Products,
+            Transaction,
             TransactionsSyncRequest,
             ItemRemoveRequest,
         ):
