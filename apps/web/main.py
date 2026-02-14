@@ -2,9 +2,9 @@
 import csv
 import os
 import threading
-from io import StringIO
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from io import StringIO
 from pathlib import Path
 from typing import Annotated
 
@@ -170,6 +170,7 @@ def _budget_lines_response(
             **mth_ctx,
         },
     )
+
 
 # MARK: Root Routes
 
@@ -637,7 +638,7 @@ def sync_transactions(
 async def import_transactions(
     request: Request,
     service: Annotated[Service, Depends(get_service)],
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa B008
 ) -> HTMLResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="CSV file is required.")
@@ -647,7 +648,9 @@ async def import_transactions(
     if not reader.fieldnames:
         raise HTTPException(status_code=400, detail="CSV headers are missing.")
 
-    normalized_headers = {header.strip().lower(): header for header in reader.fieldnames}
+    normalized_headers = {
+        header.strip().lower(): header for header in reader.fieldnames
+    }
     expected = {
         "date": "Date",
         "description": "Description",
@@ -655,11 +658,7 @@ async def import_transactions(
         "account name": "Account Name",
         "budget": "Budget",
     }
-    missing = [
-        expected[key]
-        for key in expected
-        if key not in normalized_headers
-    ]
+    missing = [expected[key] for key in expected if key not in normalized_headers]
     if missing:
         raise HTTPException(
             status_code=400,
@@ -741,19 +740,14 @@ def create_account_by_plaid(
     link_result = service.create_accounts_by_plaid(public_token)
 
     linked_new_accounts = int(link_result["linked_new_accounts"])
-    duplicate_accounts = int(link_result["duplicate_accounts"])
-    removed_duplicate_item = bool(link_result["removed_duplicate_item"])
 
     if linked_new_accounts > 0:
         service.sync_all_transactions()
 
-    if linked_new_accounts > 0 and duplicate_accounts > 0:
+    if linked_new_accounts > 0:
         plaid_notice = {
             "level": "success",
-            "message": (
-                f"Linked {linked_new_accounts} new account(s). "
-                f"Skipped {duplicate_accounts} duplicate account(s)."
-            ),
+            "message": (f"Linked {linked_new_accounts} new account(s). "),
         }
     elif linked_new_accounts > 0:
         plaid_notice = {
@@ -763,14 +757,7 @@ def create_account_by_plaid(
     else:
         plaid_notice = {
             "level": "warning",
-            "message": (
-                "This institution is already linked. "
-                + (
-                    "No duplicate account was added and the duplicate link was removed."
-                    if removed_duplicate_item
-                    else "No duplicate account was added."
-                )
-            ),
+            "message": ("This institution is already linked. "),
         }
 
     return _explorer_response(request, service, plaid_notice=plaid_notice)

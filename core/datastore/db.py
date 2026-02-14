@@ -71,7 +71,11 @@ class Sqlite3(DataStore):
 
         migration_guards = {
             "001_add_plaid_cursor.sql": lambda c: "cursor"
-            not in {row[1] for row in c.execute("PRAGMA table_info(plaid_accounts)")}
+            not in {row[1] for row in c.execute("PRAGMA table_info(plaid_accounts)")},
+            "002_add_plaid_category_to_transactions.sql": lambda c: "plaid_category_id"
+            not in {row[1] for row in c.execute("PRAGMA table_info(transactions)")},
+            "003_add_institution_to_plaid_accounts.sql": lambda c: "institution_id"
+            not in {row[1] for row in c.execute("PRAGMA table_info(plaid_accounts)")},
         }
 
         for path in sorted(migrations_dir.glob("*.sql")):
@@ -321,12 +325,24 @@ class Sqlite3(DataStore):
             ).fetchall()
 
     # MARK: - Plaid Accounts
-    def insert_plaid_account(self, token: str) -> int:
+    def insert_plaid_account(self, token: str, institution_id: str) -> int:
         with self.engine.begin() as conn:
             result = conn.execute(
-                insert(self.plaid_accounts).values(token=token, cursor=None)
+                insert(self.plaid_accounts)
+                .values(token=token, institution_id=institution_id, cursor=None)
+                .prefix_with("OR IGNORE")
             )
-            return result.inserted_primary_key[0]
+            if (
+                result.inserted_primary_key
+                and result.inserted_primary_key[0] is not None
+            ):
+                return result.inserted_primary_key[0]
+            row = conn.execute(
+                select(self.plaid_accounts.c.id).where(
+                    self.plaid_accounts.c.institution_id == institution_id
+                )
+            ).first()
+            return row.id
 
     def delete_plaid_account(self, id: int):
         with self.engine.begin() as conn:

@@ -86,7 +86,6 @@ class Plaid:
         exchange_response = self.client.item_public_token_exchange(exchange_request)
         return exchange_response["access_token"]
 
-
     def remove_financial_item(self, access_token: str):
         request = ItemRemoveRequest(access_token=access_token)
         self.client.item_remove(request)
@@ -114,9 +113,14 @@ class Plaid:
 
         return transactions, next_cursor
 
-    def retrieve_accounts(self, access_token: str) -> list[PlaidAccountBase]:
+    def retrieve_accounts(
+        self, access_token: str
+    ) -> tuple[list[PlaidAccountBase], str]:
         request = AccountsGetRequest(access_token=access_token)
         response = self.client.accounts_get(request)
+        institution_id = (
+            response["item"].get("institution_id") if "item" in response else None
+        )
 
         accounts = []
         for acc in response["accounts"]:
@@ -135,4 +139,4 @@ class Plaid:
                 )
             )
 
-        return accounts
+        return accounts, institution_id

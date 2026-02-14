@@ -35,11 +35,13 @@ class FakePlaid:
     def retrieve_accounts(self, access_token: str):
         from core.datasource.model import PlaidAccountBase
 
-        return [
-            PlaidAccountBase("acc1", "Checking", "finger1", "depository", 1200),
-            PlaidAccountBase("acc2", "Credit", "finger2", "credit", 800),
-        ]
-
+        return (
+            [
+                PlaidAccountBase("acc1", "Checking", "finger1", "depository", 1200),
+                PlaidAccountBase("acc2", "Credit", "finger2", "credit", 800),
+            ],
+            "inst-fake",
+        )
 
     def remove_financial_item(self, access_token: str):
         self.removed_access_tokens.append(access_token)
@@ -85,8 +87,8 @@ class FakeStore:
         self.selected_budget_id: int | None = None
         self.deleted_budget_transactions = []
         self.plaid_accounts = [
-            PlaidAccount(1, "token-1", "cursor-1-old"),
-            PlaidAccount(2, "token-2", "cursor-2-old"),
+            PlaidAccount(1, "token-1", "inst-1", "cursor-1-old"),
+            PlaidAccount(2, "token-2", "inst-2", "cursor-2-old"),
         ]
         self.accounts_by_id = {
             1: Account(
@@ -251,8 +253,9 @@ class FakeStore:
     def update_plaid_account_cursor(self, id: int, cursor: str | None):
         self.updated_plaid_cursors.append((id, cursor))
 
-    def insert_plaid_account(self, access_token: str):
+    def insert_plaid_account(self, access_token: str, institution_id: str):
         self.plaid_inserted_token = access_token
+        self.plaid_accounts.append(PlaidAccount(99, access_token, institution_id, None))
         return 99
 
 
@@ -395,16 +398,13 @@ def test_plaid_sync(service):
     names = [t.name for t in service.store.transactions]
     assert "Store B" in names
     transactions_by_external_id = {
-        transaction.external_id: transaction for transaction in service.store.transactions
+        transaction.external_id: transaction
+        for transaction in service.store.transactions
     }
 
-    assert (
-        transactions_by_external_id["t-1"].direction == TransactionDirection.OUT
-    )
+    assert transactions_by_external_id["t-1"].direction == TransactionDirection.OUT
     assert transactions_by_external_id["t-3"].account_id == 2
-    assert (
-        transactions_by_external_id["t-3"].direction == TransactionDirection.OUT
-    )
+    assert transactions_by_external_id["t-3"].direction == TransactionDirection.OUT
     assert transactions_by_external_id["t-4"].direction == TransactionDirection.IN
     assert service.plaid_client.retrieve_transactions_calls == [
         ("token-1", "cursor-1-old"),

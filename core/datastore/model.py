@@ -93,6 +93,7 @@ class Tag:
 class PlaidAccount:
     id: int
     token: str
+    institution_id: str
     cursor: str | None = None
 
 
