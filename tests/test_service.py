@@ -23,6 +23,7 @@ class FakePlaid:
     def __init__(self):
         self.link_token_called = False
         self.retrieve_transactions_calls = []
+        self.removed_access_tokens = []
 
     def create_link(self):
         self.link_token_called = True
@@ -34,10 +35,16 @@ class FakePlaid:
     def retrieve_accounts(self, access_token: str):
         from core.datasource.model import PlaidAccountBase
 
-        return [
-            PlaidAccountBase("acc1", "Checking", "finger1", "depository", 1200),
-            PlaidAccountBase("acc2", "Credit", "finger2", "credit", 800),
-        ]
+        return (
+            [
+                PlaidAccountBase("acc1", "Checking", "finger1", "depository", 1200),
+                PlaidAccountBase("acc2", "Credit", "finger2", "credit", 800),
+            ],
+            "inst-fake",
+        )
+
+    def remove_financial_item(self, access_token: str):
+        self.removed_access_tokens.append(access_token)
 
     def retrieve_transactions(self, access_token: str, cursor: str | None = None):
         self.retrieve_transactions_calls.append((access_token, cursor))
@@ -118,8 +125,8 @@ class FakeStore:
         self.selected_budget_id: int | None = None
         self.deleted_budget_transactions = []
         self.plaid_accounts = [
-            PlaidAccount(1, "token-1", "cursor-1-old"),
-            PlaidAccount(2, "token-2", "cursor-2-old"),
+            PlaidAccount(1, "token-1", "inst-1", "cursor-1-old"),
+            PlaidAccount(2, "token-2", "inst-2", "cursor-2-old"),
         ]
         self.accounts_by_id = {
             1: Account(
@@ -354,8 +361,9 @@ class FakeStore:
                 return budget_id
         return None
 
-    def insert_plaid_account(self, access_token: str):
+    def insert_plaid_account(self, access_token: str, institution_id: str):
         self.plaid_inserted_token = access_token
+        self.plaid_accounts.append(PlaidAccount(99, access_token, institution_id, None))
         return 99
 
 
@@ -678,14 +686,27 @@ def test_create_accounts_by_plaid(service):
             "finger2",
         ),
     ]
-    service.create_accounts_by_plaid("public-token")
+    duplicate_result = service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token is None
+    assert duplicate_result == {
+        "linked_new_accounts": 0,
+        "duplicate_accounts": 2,
+        "duplicate_item_detected": True,
+        "removed_duplicate_item": True,
+    }
+    assert service.plaid_client.removed_access_tokens == ["access-public-token"]
 
     # Branch with new accounts
     service.store.inserted_accounts.clear()
-    service.create_accounts_by_plaid("public-token")
+    linked_result = service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token == "access-public-token"
     assert any(acc.plaid_id == 99 for acc in service.store.inserted_accounts)
+    assert linked_result == {
+        "linked_new_accounts": 2,
+        "duplicate_accounts": 0,
+        "duplicate_item_detected": False,
+        "removed_duplicate_item": False,
+    }
 
 
 def test_import_transactions_from_csv_reuses_existing_transaction_id(service):

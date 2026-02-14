@@ -10,6 +10,7 @@ try:  # pragma: no cover - import guard exercised by tests
     from plaid.model.item_public_token_exchange_request import (
         ItemPublicTokenExchangeRequest,
     )
+    from plaid.model.item_remove_request import ItemRemoveRequest
     from plaid.model.link_token_create_request import LinkTokenCreateRequest
     from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
     from plaid.model.products import Products
@@ -23,6 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by tests
     AccountsGetRequest = None
     CountryCode = None
     ItemPublicTokenExchangeRequest = None
+    ItemRemoveRequest = None
     LinkTokenCreateRequest = None
     LinkTokenCreateRequestUser = None
     Products = None
@@ -48,6 +50,7 @@ class Plaid:
             Products,
             Transaction,
             TransactionsSyncRequest,
+            ItemRemoveRequest,
         ):
             raise ImportError(
                 "Plaid SDK is required. Install the 'plaid-python' package to use this datasource."
@@ -84,6 +87,10 @@ class Plaid:
         exchange_response = self.client.item_public_token_exchange(exchange_request)
         return exchange_response["access_token"]
 
+    def remove_financial_item(self, access_token: str):
+        request = ItemRemoveRequest(access_token=access_token)
+        self.client.item_remove(request)
+
     def retrieve_transactions(
         self, access_token: str, cursor: str | None = None
     ) -> tuple[list[Transaction], str | None]:
@@ -107,9 +114,14 @@ class Plaid:
 
         return transactions, next_cursor
 
-    def retrieve_accounts(self, access_token: str) -> list[PlaidAccountBase]:
+    def retrieve_accounts(
+        self, access_token: str
+    ) -> tuple[list[PlaidAccountBase], str]:
         request = AccountsGetRequest(access_token=access_token)
         response = self.client.accounts_get(request)
+        institution_id = (
+            response["item"].get("institution_id") if "item" in response else None
+        )
 
         accounts = []
         for acc in response["accounts"]:
@@ -128,4 +140,4 @@ class Plaid:
                 )
             )
 
-        return accounts
+        return accounts, institution_id

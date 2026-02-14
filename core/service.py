@@ -607,9 +607,18 @@ class Service:
     def create_accounts_by_plaid(
         self,
         public_token: str,
-    ):
+    ) -> dict[str, int | bool]:
         access_token = self.plaid_client.add_financial_item(public_token)
-        accounts = self.plaid_client.retrieve_accounts(access_token)
+        accounts, institution_id = self.plaid_client.retrieve_accounts(access_token)
+
+        # If we already have this institution linked, treat as duplicate and stop
+        for pa in self.store.retrieve_plaid_accounts():
+            if pa.institution_id == institution_id:
+                self.plaid_client.remove_financial_item(access_token)
+                return {
+                    "linked_new_accounts": 0,
+                    "duplicate_item_detected": True,
+                }
 
         PLAID_ACCOUNT_TYPE_MAP = {
             "credit": TransactionType.CREDIT,
@@ -618,33 +627,23 @@ class Service:
             "loan": TransactionType.LOAN,
         }
 
-        new_accounts_data: list[dict] = []
-
+        plaid_id = self.store.insert_plaid_account(access_token, institution_id)
+        new_accounts = 0
         for account in accounts:
-            fingerprint = account.fingerprint
-
-            # Skip accounts that already exist (stable identity)
-            if self.store.account_exists_by_fingerprint(fingerprint):
-                continue
-
-            new_accounts_data.append(
-                {
-                    "external_id": account.account_id,
-                    "source": TransactionSource.PLAID,
-                    "account_type": PLAID_ACCOUNT_TYPE_MAP.get(account.type),
-                    "name": account.name,
-                    "balance": account.balance,
-                    "fingerprint": fingerprint,
-                }
+            new_accounts += 1
+            self.store.insert_account(
+                PartialAccount(
+                    external_id=account.account_id,
+                    source=TransactionSource.PLAID,
+                    account_type=PLAID_ACCOUNT_TYPE_MAP.get(account.type),
+                    name=account.name,
+                    balance=account.balance,
+                    fingerprint=account.fingerprint,
+                    plaid_id=plaid_id,
+                )
             )
 
-        # 🚫 No new accounts discovered → do NOT persist access token
-        if not new_accounts_data:
-            return
-
-        # ✅ At least one new account → now persist access token
-        plaid_id = self.store.insert_plaid_account(access_token)
-
-        for data in new_accounts_data:
-            data["plaid_id"] = plaid_id
-            self.store.insert_account(PartialAccount(**data))
+        return {
+            "linked_new_accounts": new_accounts,
+            "duplicate_item_detected": False,
+        }

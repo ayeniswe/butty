@@ -85,6 +85,11 @@
         </button>
     </div>
 </header>
+{% if plaid_notice %}
+    <div class="explorer-notice explorer-notice--{{ plaid_notice.level }}" role="status">
+        {{ plaid_notice.message }}
+    </div>
+{% endif %}
 <section id="explorer-history-section" class="explorer-section">
     <!-- Explorer Recent -->
     <aside class="explorer-recent">

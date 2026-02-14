@@ -47,6 +47,11 @@ class DummyItemPublicTokenExchangeRequest:
         self.public_token = public_token
 
 
+class DummyItemRemoveRequest:
+    def __init__(self, access_token):
+        self.access_token = access_token
+
+
 class DummyTransactionsSyncRequest:
     def __init__(self, access_token, cursor=None):
         self.access_token = access_token
@@ -89,6 +94,7 @@ class DummyPlaidApi:
         self.exchange_requests = []
         self.sync_requests = []
         self.accounts_requests = []
+        self.remove_requests = []
         self.transactions_responses = [
             {"added": ["t1"], "has_more": True, "next_cursor": "cursor-1"},
             {"added": ["t2"], "has_more": False, "next_cursor": "cursor-2"},
@@ -105,6 +111,10 @@ class DummyPlaidApi:
     def transactions_sync(self, request):
         self.sync_requests.append(request)
         return self.transactions_responses.pop(0)
+
+    def item_remove(self, request):
+        self.remove_requests.append(request)
+        return {"removed": True}
 
     def accounts_get(self, request):
         self.accounts_requests.append(request)
@@ -163,6 +173,9 @@ item_public_token_module.ItemPublicTokenExchangeRequest = (
     DummyItemPublicTokenExchangeRequest
 )
 
+item_remove_module = types.ModuleType("plaid.model.item_remove_request")
+item_remove_module.ItemRemoveRequest = DummyItemRemoveRequest
+
 sys.modules.update(
     {
         "plaid": plaid_module,
@@ -178,6 +191,7 @@ sys.modules.update(
         "plaid.model.transactions_sync_request": transactions_sync_module,
         "plaid.model.accounts_get_request": accounts_get_module,
         "plaid.model.item_public_token_exchange_request": item_public_token_module,
+        "plaid.model.item_remove_request": item_remove_module,
     }
 )
 
@@ -205,6 +219,7 @@ def patch_plaid_dependencies(monkeypatch):
         "ItemPublicTokenExchangeRequest",
         DummyItemPublicTokenExchangeRequest,
     )
+    monkeypatch.setattr(plaid_source, "ItemRemoveRequest", DummyItemRemoveRequest)
     monkeypatch.setattr(
         plaid_source, "TransactionsSyncRequest", DummyTransactionsSyncRequest
     )
@@ -269,3 +284,12 @@ def test_retrieve_accounts_builds_domain_objects(monkeypatch):
     assert fingerprints[0] == ("inst-123", "Check", "checking", None)
     assert fingerprints[1] == ("inst-123", "Savings", "savings", None)
     assert accounts[0].balance == 50.5
+
+
+def test_remove_financial_item_calls_item_remove():
+    plaid = plaid_source.Plaid()
+
+    plaid.remove_financial_item("access-789")
+
+    remove_request = plaid.client.remove_requests[0]
+    assert remove_request.access_token == "access-789"
