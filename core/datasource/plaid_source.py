@@ -78,7 +78,7 @@ class Plaid:
             user=LinkTokenCreateRequestUser(
                 client_user_id="Butty"  # Since personal will just be the same all around
             ),
-            products=[Products("transactions")],
+            products=[Products("transactions"), Products("balances")],
         )
         return self.client.link_token_create(request)["link_token"]
 

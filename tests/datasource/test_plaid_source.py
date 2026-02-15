@@ -242,7 +242,10 @@ def test_create_link_builds_link_token():
     request = plaid.client.link_requests[0]
     assert request.kwargs["client_name"] == "Butty"
     assert isinstance(request.kwargs["user"], DummyLinkTokenCreateRequestUser)
-    assert request.kwargs["products"][0].value == "transactions"
+    assert [product.value for product in request.kwargs["products"]] == [
+        "transactions",
+        "balances",
+    ]
 
 
 def test_add_financial_item_exchanges_token():
@@ -278,8 +281,9 @@ def test_retrieve_accounts_builds_domain_objects(monkeypatch):
 
     monkeypatch.setattr(plaid_source, "build_fingerprint", dummy_build_fingerprint)
 
-    accounts = plaid.retrieve_accounts("access-456")
+    accounts, institution_id = plaid.retrieve_accounts("access-456")
 
+    assert institution_id == "inst-123"
     assert [acc.account_id for acc in accounts] == ["acc-1", "acc-2"]
     assert fingerprints[0] == ("inst-123", "Check", "checking", None)
     assert fingerprints[1] == ("inst-123", "Savings", "savings", None)

@@ -578,6 +578,14 @@ class Sqlite3(DataStore):
         with self.engine.begin() as conn:
             return conn.execute(select(self.accounts)).fetchall()
 
+    def update_account_balance(self, id: int, balance: float):
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(self.accounts)
+                .where(self.accounts.c.id == id)
+                .values(balance=dollars_to_cents(balance))
+            )
+
     # MARK: - Budget ↔ Transaction Links / Views
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
         with self.engine.begin() as conn:
