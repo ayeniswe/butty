@@ -320,10 +320,29 @@ class Service:
         self.refresh_budget_spent(budget_id)
 
     def sync_all_transactions(self, month: int | None = None, year: int | None = None):
+        self.__sync_plaid_account_balances()
         self.__sync_plaid_transactions(month=month, year=year)
         self.__relink_transactions_to_mapped_budgets(month=month, year=year)
 
     # MARK: Transactions (Plaid Integration)
+
+    def __sync_plaid_account_balances(self):
+        accounts = self.store.retrieve_accounts()
+
+        for plaid_account in self.store.retrieve_plaid_accounts():
+            p = self.store.select_plaid_account(plaid_account.id)
+            plaid_item_accounts = {
+                account.external_id: account
+                for account in accounts
+                if account.plaid_id == plaid_account.id
+            }
+            remote_accounts, _ = self.plaid_client.retrieve_accounts(p.token)
+
+            for remote_account in remote_accounts:
+                account = plaid_item_accounts.get(remote_account.account_id)
+                if not account:
+                    continue
+                self.store.update_account_balance(account.id, remote_account.balance)
 
     def __sync_plaid_transactions(
         self, month: int | None = None, year: int | None = None

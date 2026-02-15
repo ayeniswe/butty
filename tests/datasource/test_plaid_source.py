@@ -278,8 +278,9 @@ def test_retrieve_accounts_builds_domain_objects(monkeypatch):
 
     monkeypatch.setattr(plaid_source, "build_fingerprint", dummy_build_fingerprint)
 
-    accounts = plaid.retrieve_accounts("access-456")
+    accounts, institution_id = plaid.retrieve_accounts("access-456")
 
+    assert institution_id == "inst-123"
     assert [acc.account_id for acc in accounts] == ["acc-1", "acc-2"]
     assert fingerprints[0] == ("inst-123", "Check", "checking", None)
     assert fingerprints[1] == ("inst-123", "Savings", "savings", None)

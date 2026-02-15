@@ -35,6 +35,30 @@ class FakePlaid:
     def retrieve_accounts(self, access_token: str):
         from core.datasource.model import PlaidAccountBase
 
+        if access_token == "token-1":
+            return (
+                [
+                    PlaidAccountBase(
+                        "plaid-credit-acc", "Credit", "finger1", "credit", 1200
+                    )
+                ],
+                "inst-1",
+            )
+
+        if access_token == "token-2":
+            return (
+                [
+                    PlaidAccountBase(
+                        "plaid-checking-acc",
+                        "Checking",
+                        "finger2",
+                        "depository",
+                        800,
+                    )
+                ],
+                "inst-2",
+            )
+
         return (
             [
                 PlaidAccountBase("acc1", "Checking", "finger1", "depository", 1200),
@@ -158,6 +182,7 @@ class FakeStore:
         self.plaid_categories = []
         self.plaid_mappings_by_budget: dict[int, list[int]] = {}
         self.plaid_category_lookup: dict[str, int] = {}
+        self.updated_account_balances = []
 
     def insert_budget(self, name, allocated, created_at=None):
         self.inserted_budgets.append((name, allocated, created_at))
@@ -295,6 +320,9 @@ class FakeStore:
 
     def retrieve_accounts(self):
         return list(self.accounts_by_id.values())
+
+    def update_account_balance(self, id: int, balance: float):
+        self.updated_account_balances.append((id, balance))
 
     def update_plaid_account_cursor(self, id: int, cursor: str | None):
         self.updated_plaid_cursors.append((id, cursor))
@@ -527,6 +555,10 @@ def test_plaid_sync(service):
         (1, "cursor-1-new"),
         (2, "cursor-2-new"),
     ]
+    assert service.store.updated_account_balances == [
+        (1, 1200),
+        (2, 800),
+    ]
     # Category persisted on matched transactions and tied to each inserted txn
     assert service.store.plaid_category_updates
     persisted_ids = {txn_id for txn_id, _ in service.store.plaid_category_updates}
@@ -686,26 +718,26 @@ def test_create_accounts_by_plaid(service):
             "finger2",
         ),
     ]
+    service.store.plaid_accounts = [
+        PlaidAccount(1, "token-existing", "inst-fake", "cursor-old")
+    ]
     duplicate_result = service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token is None
     assert duplicate_result == {
         "linked_new_accounts": 0,
-        "duplicate_accounts": 2,
         "duplicate_item_detected": True,
-        "removed_duplicate_item": True,
     }
     assert service.plaid_client.removed_access_tokens == ["access-public-token"]
 
     # Branch with new accounts
     service.store.inserted_accounts.clear()
+    service.store.plaid_accounts = []
     linked_result = service.create_accounts_by_plaid("public-token")
     assert service.store.plaid_inserted_token == "access-public-token"
     assert any(acc.plaid_id == 99 for acc in service.store.inserted_accounts)
     assert linked_result == {
         "linked_new_accounts": 2,
-        "duplicate_accounts": 0,
         "duplicate_item_detected": False,
-        "removed_duplicate_item": False,
     }
 
 

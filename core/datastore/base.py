@@ -156,6 +156,9 @@ class DataStore(ABC):
     @abstractmethod
     def retrieve_accounts(self) -> list[Account]: ...
 
+    @abstractmethod
+    def update_account_balance(self, id: int, balance: float): ...
+
     # -------- Budget ↔ Transactions --------
     @abstractmethod
     def insert_budget_transaction(self, budget_id: int, transaction_id: int): ...
