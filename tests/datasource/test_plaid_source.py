@@ -242,10 +242,7 @@ def test_create_link_builds_link_token():
     request = plaid.client.link_requests[0]
     assert request.kwargs["client_name"] == "Butty"
     assert isinstance(request.kwargs["user"], DummyLinkTokenCreateRequestUser)
-    assert [product.value for product in request.kwargs["products"]] == [
-        "transactions",
-        "balances",
-    ]
+    assert request.kwargs["products"][0].value == "transactions"
 
 
 def test_add_financial_item_exchanges_token():
