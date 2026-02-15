@@ -144,7 +144,9 @@
                     {% for account in accounts %}
                         <li>
                             <p class="list__title">{{ account.name }}</p>
-                            <p class="list__meta">Updated just now</p>
+                            <p class="list__meta">
+                                {{ (account.last_updated_at if account.last_updated_at is defined else none) | balance_last_updated }}
+                            </p>
                             <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
                         </li>
                     {% endfor %}

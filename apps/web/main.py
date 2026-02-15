@@ -50,6 +50,35 @@ def _seconds_until_next_daily_sync(now: datetime | None = None) -> float:
     return timedelta(days=1).total_seconds()
 
 
+def _format_balance_last_updated(
+    last_updated_at: str | datetime | None, now: datetime | None = None
+) -> str:
+    if not last_updated_at:
+        return "Updated recently"
+
+    parsed = last_updated_at
+    if isinstance(last_updated_at, str):
+        try:
+            parsed = datetime.fromisoformat(last_updated_at)
+        except ValueError:
+            return "Updated recently"
+
+    if not isinstance(parsed, datetime):
+        return "Updated recently"
+
+    now = now or datetime.now(parsed.tzinfo)
+    if (
+        parsed.year == now.year
+        and parsed.month == now.month
+        and parsed.day == now.day
+        and parsed.hour == now.hour
+        and parsed.minute == now.minute
+    ):
+        return "Updated just now"
+
+    return f"Updated {parsed.strftime('%b %d, %Y %I:%M %p')}"
+
+
 def _start_daily_plaid_sync_thread(service: Service):
     stop_event = threading.Event()
 
@@ -95,6 +124,7 @@ def get_service():
 
 
 templates = Jinja2Templates(directory="apps/web/templates")
+templates.env.filters["balance_last_updated"] = _format_balance_last_updated
 app.mount("/static", StaticFiles(directory="apps/web/static"), name="static")
 
 
