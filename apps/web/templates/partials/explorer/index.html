@@ -146,7 +146,7 @@
                             <div class="txn-row">
                                 <div class="txn-row__main">
                                     <p class="list__title">{{ account.display_name or account.name }}</p>
-                                    <p class="list__meta">Updated just now</p>
+                                    <p class="list__meta">{{ account_update_labels[account.id] }}</p>
                                 </div>
                                 <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
                             </div>

@@ -3,7 +3,7 @@ import csv
 import os
 import threading
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from typing import Annotated
@@ -121,14 +121,53 @@ def _activity_context(
     )
     transactions = service.get_all_transactions()
     accounts = service.get_all_accounts()
+    account_update_labels = {
+        account.id: _format_last_updated_label(account.last_updated_at)
+        for account in accounts
+    }
     return {
         "recent_transactions": recent_transactions,
         "transactions": transactions,
         "accounts": accounts,
+        "account_update_labels": account_update_labels,
         "budgets": service.get_all_budgets(mth_ctx["current_month"], mth_ctx["year"]),
         "plaid_notice": plaid_notice,
         **mth_ctx,
     }
+
+
+def _parse_utc_datetime(value: datetime | str) -> datetime:
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        raw = value.strip()
+        if raw.endswith("Z"):
+            raw = f"{raw[:-1]}+00:00"
+        dt = datetime.fromisoformat(raw)
+
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _format_last_updated_label(
+    updated_at: datetime | str,
+    now_utc: datetime | None = None,
+) -> str:
+    current_utc = now_utc or datetime.now(timezone.utc)
+    normalized_now = _parse_utc_datetime(current_utc)
+    normalized_updated_at = _parse_utc_datetime(updated_at)
+
+    if (
+        normalized_updated_at.year == normalized_now.year
+        and normalized_updated_at.month == normalized_now.month
+        and normalized_updated_at.day == normalized_now.day
+        and normalized_updated_at.hour == normalized_now.hour
+        and normalized_updated_at.minute == normalized_now.minute
+    ):
+        return "Last updated now"
+
+    return f"Last updated {normalized_updated_at.strftime('%b %d, %Y %I:%M %p UTC')}"
 
 
 def _explorer_response(
