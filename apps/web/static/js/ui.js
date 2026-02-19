@@ -84,6 +84,7 @@ function openTxnContextMenu(event, rowEl) {
     const noteInput = menu.querySelector('.context-menu__note-input');
     const removeItem = menu.querySelector('[data-action=remove-budget]');
     const assignItem = menu.querySelector('[data-action=assign-budget]');
+    const ignoreTransactionItem = menu.querySelector('[data-action=ignore-transaction]');
 
     // Determine viewed period from context menu metadata
     const currentMonth = Number(menu.dataset.currentMonth);
@@ -93,7 +94,7 @@ function openTxnContextMenu(event, rowEl) {
     menu.dataset.txnOccurredAt = rowEl.dataset.txnOccurredAt;
     menu.dataset.txnBudgeted = rowEl.dataset.txnBudgeted;
     menu.dataset.txnNote = rowEl.dataset.txnNote || '';
-
+    
     const rowRect = rowEl.getBoundingClientRect();
     const clickX = Number.isFinite(event.clientX) ? event.clientX : rowRect.left;
     const clickY = Number.isFinite(event.clientY) ? event.clientY : rowRect.top;
@@ -119,6 +120,15 @@ function openTxnContextMenu(event, rowEl) {
     }
 
     // Assign budget → only if NOT budgeted AND current period
+
+    if (ignoreTransactionItem) {
+        if (menu.dataset.txnBudgeted === '1' && isCurrentPeriod) {
+            ignoreTransactionItem.style.display = 'block';
+        } else {
+            ignoreTransactionItem.style.display = 'none';
+        }
+    }
+
     if (assignItem) {
         if (menu.dataset.txnBudgeted !== '1' && isCurrentPeriod) {
             assignItem.style.display = 'block';

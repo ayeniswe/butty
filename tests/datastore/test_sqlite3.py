@@ -1033,3 +1033,51 @@ def test_select_budget_id_for_transaction(db: Sqlite3):
     budget_id = db.select_budget_id_for_transaction(tx_id)
 
     assert budget_id == 1
+
+def test_update_account_display_name(db: Sqlite3):
+    account_id = db.insert_account(
+        PartialAccount(
+            name="Primary Checking",
+            external_id="ext-acc-display-1",
+            source=TransactionSource.PLAID,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-acct-display-1",
+        )
+    )
+
+    db.update_account_display_name(account_id, "Bills Account")
+
+    with db.engine.begin() as conn:
+        row = conn.execute(select(db.accounts).where(db.accounts.c.id == account_id)).first()
+
+    assert row.display_name == "Bills Account"
+
+
+def test_insert_and_check_ignored_budget_transaction(db: Sqlite3):
+    budget_id = db.insert_budget("Food", 100)
+    account_id = db.insert_account(
+        PartialAccount(
+            name="Checking",
+            external_id="ext-ignored-1",
+            source=TransactionSource.PLAID,
+            account_type="DEPOSITORY",
+            balance=0,
+            fingerprint="fp-ignored-1",
+        )
+    )
+    transaction_id = db.insert_transaction(
+        PartialTransaction(
+            name="Coffee",
+            amount=7,
+            direction=TransactionDirection.OUT,
+            account_id=account_id,
+            fingerprint="fp-ignored-txn-1",
+        )
+    )
+
+    assert db.ignored_budget_transaction_exists(budget_id, transaction_id) is False
+
+    db.insert_ignored_budget_transaction(budget_id, transaction_id)
+
+    assert db.ignored_budget_transaction_exists(budget_id, transaction_id) is True

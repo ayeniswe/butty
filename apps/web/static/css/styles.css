@@ -1661,3 +1661,31 @@ textarea[readonly] {
   font-weight: 700;
   color: var(--color-text-primary);
 }
+
+.account-menu {
+    margin-top: 0.25rem;
+}
+
+.account-menu summary {
+    list-style: none;
+    cursor: pointer;
+    width: fit-content;
+}
+
+.account-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.account-menu__form {
+    display: grid;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+}
+
+.account-menu__form input {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.4rem 0.5rem;
+    background: var(--panel);
+    color: var(--text);
+}

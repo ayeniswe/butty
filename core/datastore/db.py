@@ -59,6 +59,8 @@ class Sqlite3(DataStore):
         self.accounts = self.meta.tables["accounts"]
         self.plaid_categories = self.meta.tables["plaid_categories"]
         self.plaid_category_mappings = self.meta.tables["plaid_category_mappings"]
+        self.ignored_plaid_categories = self.meta.tables["ignored_plaid_categories"]
+        self.ignored_budget_transactions = self.meta.tables["ignored_budget_transactions"]
 
     @staticmethod
     def __apply_migrations(conn):
@@ -82,6 +84,18 @@ class Sqlite3(DataStore):
             not in {row[1] for row in c.execute("PRAGMA table_info(transactions)")},
             "003_add_institution_to_plaid_accounts.sql": lambda c: "institution_id"
             not in {row[1] for row in c.execute("PRAGMA table_info(plaid_accounts)")},
+            "004_account_display_name_and_ignored_categories.sql": lambda c: (
+                "display_name"
+                not in {row[1] for row in c.execute("PRAGMA table_info(accounts)")}
+                or c.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='ignored_plaid_categories'"
+                ).fetchone()
+                is None
+            ),
+            "005_ignored_budget_transactions.sql": lambda c: c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='ignored_budget_transactions'"
+            ).fetchone()
+            is None,
         }
 
         for path in sorted(migrations_dir.glob("*.sql")):
@@ -347,11 +361,12 @@ class Sqlite3(DataStore):
             ).fetchall()
 
     # MARK: - Plaid Accounts
-    def insert_plaid_account(self, token: str, institution_id: str) -> int:
+    def insert_plaid_account(self, token: str, institution_id: str | None = None) -> int:
+        institution_key = institution_id if institution_id else token
         with self.engine.begin() as conn:
             result = conn.execute(
                 insert(self.plaid_accounts)
-                .values(token=token, institution_id=institution_id, cursor=None)
+                .values(token=token, institution_id=institution_key, cursor=None)
                 .prefix_with("OR IGNORE")
             )
             if (
@@ -361,7 +376,7 @@ class Sqlite3(DataStore):
                 return result.inserted_primary_key[0]
             row = conn.execute(
                 select(self.plaid_accounts.c.id).where(
-                    self.plaid_accounts.c.institution_id == institution_id
+                    self.plaid_accounts.c.institution_id == institution_key
                 )
             ).first()
             return row.id
@@ -585,6 +600,35 @@ class Sqlite3(DataStore):
                 .where(self.accounts.c.id == id)
                 .values(balance=dollars_to_cents(balance))
             )
+
+    def update_account_display_name(self, id: int, display_name: str):
+        cleaned = display_name.strip()
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(self.accounts)
+                .where(self.accounts.c.id == id)
+                .values(display_name=cleaned if cleaned else None)
+            )
+
+    def insert_ignored_budget_transaction(self, budget_id: int, transaction_id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(self.ignored_budget_transactions)
+                .values(budget_id=budget_id, transaction_id=transaction_id)
+                .prefix_with("OR IGNORE")
+            )
+
+    def ignored_budget_transaction_exists(
+        self, budget_id: int, transaction_id: int
+    ) -> bool:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.ignored_budget_transactions.c.transaction_id)
+                .where(self.ignored_budget_transactions.c.budget_id == budget_id)
+                .where(self.ignored_budget_transactions.c.transaction_id == transaction_id)
+                .limit(1)
+            ).first()
+            return row is not None
 
     # MARK: - Budget ↔ Transaction Links / Views
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
