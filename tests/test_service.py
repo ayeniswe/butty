@@ -636,7 +636,7 @@ def test_relink_existing_transactions(service):
     service.store.plaid_mappings_by_budget[7] = [2]
     service.store.selected_budget_id = None
 
-    service.sync_all_transactions()
+    service.sync_all_transactions(month=1, year=2024)
 
     assert (7, 10) in service.store.inserted_budget_transactions
 
