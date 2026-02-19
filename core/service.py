@@ -320,6 +320,11 @@ class Service:
         self.refresh_budget_spent(budget_id)
 
     def sync_all_transactions(self, month: int | None = None, year: int | None = None):
+        if month is None or year is None:
+            now = datetime.now()
+            month = now.month
+            year = now.year
+
         self.__sync_plaid_account_balances()
         self.__sync_plaid_transactions(month=month, year=year)
         self.__relink_transactions_to_mapped_budgets(month=month, year=year)
