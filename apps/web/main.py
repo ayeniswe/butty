@@ -669,6 +669,18 @@ def transaction_remove_budget(
     return _explorer_response(request, service, month, year)
 
 
+@transactions_router.post("/ignore", response_class=HTMLResponse)
+def ignore_transaction_for_budget(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    transaction_id: int = Form(...),
+    month: int = Form(...),
+    year: int = Form(...),
+) -> HTMLResponse:
+    service.ignore_transaction_for_budget(transaction_id)
+    return _explorer_response(request, service, month, year)
+
+
 @transactions_router.get("/sync", response_class=HTMLResponse)
 def sync_transactions(
     request: Request,
@@ -807,6 +819,19 @@ def create_account_by_plaid(
         }
 
     return _explorer_response(request, service, plaid_notice=plaid_notice)
+
+
+@account_router.post("/{id}/display-name", response_class=HTMLResponse)
+def update_account_display_name(
+    request: Request,
+    service: Annotated[Service, Depends(get_service)],
+    id: int,
+    display_name: str = Form(""),
+    month: int | None = Query(None),
+    year: int | None = Query(None),
+) -> HTMLResponse:
+    service.edit_account_display_name(id, display_name)
+    return _explorer_response(request, service, month, year)
 
 
 # MARK: Router Registration

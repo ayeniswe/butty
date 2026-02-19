@@ -1,6 +1,7 @@
 # MARK: Imports
 import calendar
 from datetime import datetime
+from difflib import SequenceMatcher
 
 from core.datasource.plaid_source import Plaid
 from core.datastore.base import DataStore
@@ -405,13 +406,6 @@ class Service:
                     )
                 )
 
-                category = getattr(transaction, "personal_finance_category", None)
-                detailed = getattr(category, "detailed", None) if category else None
-                primary = getattr(category, "primary", None) if category else None
-                if not detailed or not primary:
-                    continue
-
-                category_id = self.store.upsert_plaid_category(primary, detailed)
                 if transaction_id is None:
                     transaction_id = (
                         self.store.select_transaction_id_by_fingerprint_or_external_id(
@@ -421,21 +415,33 @@ class Service:
                     if transaction_id is None:
                         continue
 
-                # Always persist category on the transaction for future reference
-                self.store.update_transaction_plaid_category(
-                    transaction_id, category_id
-                )
+                category = getattr(transaction, "personal_finance_category", None)
+                detailed = getattr(category, "detailed", None) if category else None
+                primary = getattr(category, "primary", None) if category else None
+                category_id = None
 
-                budget_id = self.store.select_budget_id_by_plaid_category(detailed)
-                if (
-                    budget_id
-                    and self.__occurs_in_month(date, month, year)
-                    and direction == TransactionDirection.OUT
-                    and self.__budget_in_scope(budget_id, month, year)
-                ):
-                    self.store.insert_budget_transaction(budget_id, transaction_id)
-                    touched_budgets.add(budget_id)
-                    continue
+                if detailed and primary:
+                    category_id = self.store.upsert_plaid_category(primary, detailed)
+                    # Always persist category on the transaction for future reference
+                    self.store.update_transaction_plaid_category(
+                        transaction_id, category_id
+                    )
+
+                
+                if detailed:
+                    budget_id = self.store.select_budget_id_by_plaid_category(detailed)
+                    if (
+                        budget_id
+                        and self.__occurs_in_month(date, month, year)
+                        and direction == TransactionDirection.OUT
+                        and self.__budget_in_scope(budget_id, month, year)
+                        and not self.store.ignored_budget_transaction_exists(
+                            budget_id, transaction_id
+                        )
+                    ):
+                        self.store.insert_budget_transaction(budget_id, transaction_id)
+                        touched_budgets.add(budget_id)
+                        continue
 
                 # Fallback: try primary-level match if detailed not mapped
                 if primary:
@@ -445,9 +451,27 @@ class Service:
                         and self.__occurs_in_month(date, month, year)
                         and direction == TransactionDirection.OUT
                         and self.__budget_in_scope(budget_id, month, year)
+                        and not self.store.ignored_budget_transaction_exists(
+                            budget_id, transaction_id
+                        )
                     ):
                         self.store.insert_budget_transaction(budget_id, transaction_id)
                         touched_budgets.add(budget_id)
+                        continue
+
+                tag_budget_id = self.__match_budget_by_transaction_tags(
+                    name, date, month, year
+                )
+                if (
+                    tag_budget_id
+                    and self.__occurs_in_month(date, month, year)
+                    and direction == TransactionDirection.OUT
+                    and not self.store.ignored_budget_transaction_exists(
+                        tag_budget_id, transaction_id
+                    )
+                ):
+                    self.store.insert_budget_transaction(tag_budget_id, transaction_id)
+                    touched_budgets.add(tag_budget_id)
 
             for budget_id in touched_budgets:
                 self.refresh_budget_spent(budget_id)
@@ -482,6 +506,9 @@ class Service:
                 self.__occurs_in_month(occurred_at, month, year)
                 and txn.direction == TransactionDirection.OUT
                 and self.__budget_in_scope(budget_id, month, year)
+                and not self.store.ignored_budget_transaction_exists(
+                    budget_id, txn_id
+                )
             ):
                 self.store.insert_budget_transaction(budget_id, txn_id)
                 touched_budgets.add(budget_id)
@@ -516,6 +543,59 @@ class Service:
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at)
         return created_at.month == month and created_at.year == year
+
+    @staticmethod
+    def __tag_match_score(tag: str, transaction_name: str) -> float:
+        normalized_tag = normalize(tag)
+        normalized_name = normalize(transaction_name)
+        if not normalized_tag or not normalized_name:
+            return 0.0
+        if normalized_tag == normalized_name:
+            return 1.0
+        if normalized_tag in normalized_name or normalized_name in normalized_tag:
+            return 0.9
+        ratio = SequenceMatcher(None, normalized_tag, normalized_name).ratio()
+        return ratio if ratio >= 0.82 else 0.0
+
+    def __match_budget_by_transaction_tags(
+        self,
+        transaction_name: str,
+        occurred_at: datetime | str | None,
+        month: int | None,
+        year: int | None,
+    ) -> int | None:
+        if occurred_at is None:
+            return None
+        if isinstance(occurred_at, str):
+            occurred_at = datetime.fromisoformat(occurred_at)
+
+        budget_month = month if month is not None else occurred_at.month
+        budget_year = year if year is not None else occurred_at.year
+        budgets = self.get_all_budgets(budget_month, budget_year)
+
+        best_budget_id: int | None = None
+        best_score = 0.0
+
+        for budget in budgets:
+            if not self.__budget_in_scope(budget.id, month, year):
+                continue
+            tags = self.store.retrieve_budget_tags(budget.id)
+            for tag in tags:
+                score = self.__tag_match_score(tag.name, transaction_name)
+                if score > best_score:
+                    best_score = score
+                    best_budget_id = budget.id
+
+        return best_budget_id
+
+    def ignore_transaction_for_budget(self, transaction_id: int) -> bool:
+        budget_id = self.store.select_budget_id_for_transaction(transaction_id)
+        if budget_id is None:
+            return False
+
+        self.store.insert_ignored_budget_transaction(budget_id, transaction_id)
+        self.unassign_transaction_to_budget(budget_id, transaction_id)
+        return True
 
     # MARK: Transactions (Apple Card Integration)
 
@@ -622,6 +702,9 @@ class Service:
 
     def get_all_accounts(self):
         return self.store.retrieve_accounts()
+
+    def edit_account_display_name(self, id: int, display_name: str):
+        self.store.update_account_display_name(id, display_name)
 
     def get_plaid_token(self):
         return self.plaid_client.create_link()

@@ -179,10 +179,13 @@ class FakeStore:
         self.tags = [{"id": "1"}, {"id": "2"}]
         self.updated_plaid_cursors = []
         self.plaid_category_updates = []
+        self.transaction_plaid_category_ids = {}
         self.plaid_categories = []
         self.plaid_mappings_by_budget: dict[int, list[int]] = {}
         self.plaid_category_lookup: dict[str, int] = {}
         self.updated_account_balances = []
+        self.updated_account_display_names = []
+        self.ignored_budget_transactions = set()
 
     def insert_budget(self, name, allocated, created_at=None):
         self.inserted_budgets.append((name, allocated, created_at))
@@ -210,7 +213,25 @@ class FakeStore:
         self.deleted_budget = id
 
     def select_transaction(self, id: int):
-        return self.transactions[id]
+        txn = self.transactions[id]
+        plaid_category_id = self.transaction_plaid_category_ids.get(id)
+        if plaid_category_id is None:
+            return txn
+        return type(
+            "TxnWithCategory",
+            (),
+            {
+                "id": getattr(txn, "id", id),
+                "name": txn.name,
+                "amount": txn.amount,
+                "direction": txn.direction,
+                "occurred_at": txn.occurred_at,
+                "account_id": txn.account_id,
+                "external_id": getattr(txn, "external_id", None),
+                "note": getattr(txn, "note", None),
+                "plaid_category_id": plaid_category_id,
+            },
+        )()
 
     def update_budget(self, partial: PartialBudget):
         self.budget_updates.append(partial)
@@ -273,6 +294,7 @@ class FakeStore:
 
     def update_transaction_plaid_category(self, id: int, plaid_category_id: int):
         self.plaid_category_updates.append((id, plaid_category_id))
+        self.transaction_plaid_category_ids[id] = plaid_category_id
 
     def select_budget_id_for_transaction(self, transaction_id: int):
         return self.selected_budget_id
@@ -323,6 +345,15 @@ class FakeStore:
 
     def update_account_balance(self, id: int, balance: float):
         self.updated_account_balances.append((id, balance))
+
+    def update_account_display_name(self, id: int, display_name: str):
+        self.updated_account_display_names.append((id, display_name))
+
+    def insert_ignored_budget_transaction(self, budget_id: int, transaction_id: int):
+        self.ignored_budget_transactions.add((budget_id, transaction_id))
+
+    def ignored_budget_transaction_exists(self, budget_id: int, transaction_id: int):
+        return (budget_id, transaction_id) in self.ignored_budget_transactions
 
     def update_plaid_account_cursor(self, id: int, cursor: str | None):
         self.updated_plaid_cursors.append((id, cursor))
@@ -389,9 +420,10 @@ class FakeStore:
                 return budget_id
         return None
 
-    def insert_plaid_account(self, access_token: str, institution_id: str):
+    def insert_plaid_account(self, access_token: str, institution_id: str | None = None):
         self.plaid_inserted_token = access_token
-        self.plaid_accounts.append(PlaidAccount(99, access_token, institution_id, None))
+        institution_key = institution_id if institution_id else access_token
+        self.plaid_accounts.append(PlaidAccount(99, access_token, institution_key, None))
         return 99
 
 
@@ -684,6 +716,7 @@ def test_tag_and_account_helpers(service):
     service.tags = service.store.tags
     service.delete_tag(1)
     accounts = service.get_all_accounts()
+    service.edit_account_display_name(1, "Travel Card")
     link_token = service.get_plaid_token()
 
     assert budget_txns
@@ -694,6 +727,7 @@ def test_tag_and_account_helpers(service):
         for tag in all_tags
     )
     assert budget_tags and accounts
+    assert service.store.updated_account_display_names[-1] == (1, "Travel Card")
     assert service.store.tag_assignments[-1] == (1, 2, "deleted")
     assert link_token == "link-token"
 
@@ -940,3 +974,42 @@ def test_set_budget_plaid_category_mappings_preserves_existing_on_empty(service)
     service.set_budget_plaid_category_mappings(1, [])
 
     assert service.store.plaid_mappings_by_budget[1] == [4, 5]
+
+
+def test_sync_uses_tag_match_for_budget_assignment(service):
+    service.store.budgets = [Budget(9, "Coffee", 1000, 0, 0, datetime.datetime(2023, 1, 1))]
+
+    def retrieve_budget_tags(budget_id: int):
+        if budget_id == 9:
+            return [Tag(id=5, name="merchant a")]
+        return []
+
+    service.store.retrieve_budget_tags = retrieve_budget_tags
+    service.store.plaid_mappings_by_budget = {}
+    service.store.plaid_category_lookup = {}
+
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert (9, 0) in service.store.inserted_budget_transactions
+
+
+def test_ignore_transaction_for_budget_blocks_future_budget_mapping(service):
+    service.sync_all_transactions(month=1, year=2023)
+
+    service.store.budgets = [
+        Budget(1, "Food", 1000, 0, 0, datetime.datetime(2023, 1, 1))
+    ]
+    service.store.selected_budget_id = 1
+    ignored = service.ignore_transaction_for_budget(0)
+    assert ignored is True
+
+    service.store.inserted_budget_transactions.clear()
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert service.store.ignored_budget_transaction_exists(1, 0)
+    assert (1, 0) not in service.store.inserted_budget_transactions
+
+
+def test_ignore_transaction_for_budget_returns_false_when_unassigned(service):
+    service.store.selected_budget_id = None
+    assert service.ignore_transaction_for_budget(123) is False

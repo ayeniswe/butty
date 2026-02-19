@@ -109,6 +109,7 @@ class Account:
     name: str
     balance: int
     plaid_id: int | None
+    display_name: str | None = None
 
 
 @dataclass(frozen=True)

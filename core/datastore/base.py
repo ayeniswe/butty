@@ -98,7 +98,7 @@ class DataStore(ABC):
 
     # -------- Plaid Accounts --------
     @abstractmethod
-    def insert_plaid_account(self, token: str, institution_id: str) -> int: ...
+    def insert_plaid_account(self, token: str, institution_id: str | None = None) -> int: ...
 
     @abstractmethod
     def delete_plaid_account(self, id: int): ...
@@ -158,6 +158,17 @@ class DataStore(ABC):
 
     @abstractmethod
     def update_account_balance(self, id: int, balance: float): ...
+
+    @abstractmethod
+    def update_account_display_name(self, id: int, display_name: str): ...
+
+    @abstractmethod
+    def insert_ignored_budget_transaction(self, budget_id: int, transaction_id: int): ...
+
+    @abstractmethod
+    def ignored_budget_transaction_exists(
+        self, budget_id: int, transaction_id: int
+    ) -> bool: ...
 
     # -------- Budget ↔ Transactions --------
     @abstractmethod

@@ -143,9 +143,24 @@
                 {% if accounts and accounts|length > 0 %}
                     {% for account in accounts %}
                         <li>
-                            <p class="list__title">{{ account.name }}</p>
-                            <p class="list__meta">Updated just now</p>
-                            <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
+                            <div class="txn-row">
+                                <div class="txn-row__main">
+                                    <p class="list__title">{{ account.display_name or account.name }}</p>
+                                    <p class="list__meta">Updated just now</p>
+                                </div>
+                                <span class="list__amount">${{ '%.2f' % (account.balance / 100) }}</span>
+                            </div>
+                            <details class="account-menu">
+                                <summary class="pill pill--ghost pill--xsmall">⋯</summary>
+                                <form class="account-menu__form"
+                                      hx-post="/accounts/{{ account.id }}/display-name?month={{ current_month }}{%- if year is not none -%}&year={{ year }}{%- endif -%}"
+                                      hx-target="#explorer-history"
+                                      hx-swap="innerHTML">
+                                    <label class="list__meta" for="account-display-name-{{ account.id }}">Display name</label>
+                                    <input id="account-display-name-{{ account.id }}" name="display_name" type="text" value="{{ account.display_name or account.name }}" maxlength="120" />
+                                    <button type="submit" class="pill pill--xsmall pill--secondary">Save</button>
+                                </form>
+                            </details>
                         </li>
                     {% endfor %}
                 {% else %}
@@ -267,6 +282,16 @@
                     role="button"
                     hx-on="click: const menu = document.getElementById('txn-context-menu'); menu.querySelector('[data-view=main]').style.display = 'none'; menu.querySelector('[data-view=note]').style.display = 'block';">
                     Edit note
+                </li>
+                <li class="context-menu__item danger"
+                    data-action="ignore-transaction"
+                    role="button"
+                    hx-post="/transactions/ignore"
+                    hx-target="#explorer-history"
+                    hx-swap="innerHTML"
+                    hx-vals='js:{ transaction_id: document.getElementById("txn-context-menu").dataset.txnId, month: document.getElementById("txn-context-menu").dataset.currentMonth, year: document.getElementById("txn-context-menu").dataset.currentYear }'
+                    hx-confirm="Ignore this transaction for this budget so future syncs do not auto-assign it again?">
+                    Ignore for this budget
                 </li>
             </ul>
             <!-- BUDGET LIST VIEW -->
