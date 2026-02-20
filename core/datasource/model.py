@@ -8,3 +8,11 @@ class PlaidAccountBase:
     fingerprint: str
     type: str
     balance: float
+
+
+@dataclass(frozen=True)
+class PlaidTransactionSync:
+    added: list
+    modified: list
+    removed_ids: list[str]
+    next_cursor: str | None

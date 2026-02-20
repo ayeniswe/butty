@@ -1,4 +1,5 @@
 import datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -92,47 +93,57 @@ class FakePlaid:
 
         now = datetime.datetime(2023, 1, 15)
         if access_token == "token-1":
-            return [
-                Txn(
-                    "Merchant A",
-                    None,
-                    2500,
-                    now,
-                    "t-1",
-                    "plaid-credit-acc",
-                    Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_RESTAURANT"),
-                ),
-                Txn(
-                    "Merchant B",
-                    "Store B",
-                    -500,
-                    now,
-                    "t-2",
-                    "plaid-credit-acc",
-                    Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_COFFEE"),
-                ),
-            ], "cursor-1-new"
+            return SimpleNamespace(
+                added=[
+                    Txn(
+                        "Merchant A",
+                        None,
+                        2500,
+                        now,
+                        "t-1",
+                        "plaid-credit-acc",
+                        Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_RESTAURANT"),
+                    ),
+                    Txn(
+                        "Merchant B",
+                        "Store B",
+                        -500,
+                        now,
+                        "t-2",
+                        "plaid-credit-acc",
+                        Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_COFFEE"),
+                    ),
+                ],
+                modified=[],
+                removed_ids=[],
+                next_cursor="cursor-1-new",
+            )
 
-        return [
-            Txn(
-                "Rent",
-                "Landlord",
-                1200,
-                now,
-                "t-3",
-                "plaid-checking-acc",
-                Category("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT"),
-            ),
-            Txn(
-                "Payroll",
-                None,
-                -4500,
-                now,
-                "t-4",
-                "plaid-checking-acc",
-                Category("INCOME", "INCOME_WAGES"),
-            ),
-        ], "cursor-2-new"
+        return SimpleNamespace(
+            added=[
+                Txn(
+                    "Rent",
+                    "Landlord",
+                    1200,
+                    now,
+                    "t-3",
+                    "plaid-checking-acc",
+                    Category("RENT_AND_UTILITIES", "RENT_AND_UTILITIES_RENT"),
+                ),
+                Txn(
+                    "Payroll",
+                    None,
+                    -4500,
+                    now,
+                    "t-4",
+                    "plaid-checking-acc",
+                    Category("INCOME", "INCOME_WAGES"),
+                ),
+            ],
+            modified=[],
+            removed_ids=[],
+            next_cursor="cursor-2-new",
+        )
 
 
 class FakeStore:
@@ -145,6 +156,7 @@ class FakeStore:
         self.force_insert_transaction_none = False
         self.inserted_budget_transactions = []
         self.transaction_note_updates = []
+        self.deleted_transaction_ids = []
         self.budget_updates: list[PartialBudget] = []
         self.selected_budget_id: int | None = None
         self.deleted_budget_transactions = []
@@ -295,6 +307,15 @@ class FakeStore:
     def update_transaction_plaid_category(self, id: int, plaid_category_id: int):
         self.plaid_category_updates.append((id, plaid_category_id))
         self.transaction_plaid_category_ids[id] = plaid_category_id
+
+    def delete_transaction(self, id: int):
+        self.deleted_transaction_ids.append(id)
+        if 0 <= id < len(self.transactions):
+            txn = self.transactions[id]
+            if getattr(txn, "fingerprint", None) in self.transaction_fingerprints:
+                del self.transaction_fingerprints[txn.fingerprint]
+            if getattr(txn, "external_id", None) in self.transaction_external_ids:
+                del self.transaction_external_ids[txn.external_id]
 
     def select_budget_id_for_transaction(self, transaction_id: int):
         return self.selected_budget_id
@@ -631,9 +652,11 @@ def test_sync_links_only_outgoing(service):
 
     service.plaid_client.retrieve_transactions_calls.clear()
     # Override retrieve_transactions to return a crafted IN transaction
-    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: (
-        [Txn(TransactionDirection.IN)],
-        "c-new",
+    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: SimpleNamespace(
+        added=[Txn(TransactionDirection.IN)],
+        modified=[],
+        removed_ids=[],
+        next_cursor="c-new",
     )
 
     service.store.plaid_categories = []
@@ -1013,3 +1036,45 @@ def test_ignore_transaction_for_budget_blocks_future_budget_mapping(service):
 def test_ignore_transaction_for_budget_returns_false_when_unassigned(service):
     service.store.selected_budget_id = None
     assert service.ignore_transaction_for_budget(123) is False
+
+def test_plaid_sync_handles_modified_and_removed_transactions(service):
+    now = datetime.datetime(2023, 1, 15)
+
+    existing = PartialTransaction(
+        "Gas Hold",
+        100,
+        TransactionDirection.OUT,
+        1,
+        "old-fp",
+        external_id="gas-txn",
+        occurred_at=now,
+    )
+    existing_id = service.store.insert_transaction(existing)
+    assert existing_id == 0
+
+    class Txn:
+        def __init__(self):
+            self.account_id = "plaid-credit-acc"
+            self.amount = 125
+            self.date = now
+            self.transaction_id = "gas-txn"
+            self.merchant_name = "Gas Station"
+            self.name = "Gas"
+            self.personal_finance_category = type(
+                "Cat", (), {"primary": "TRANSPORTATION", "detailed": "TRANSPORTATION_GAS"}
+            )
+
+    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: SimpleNamespace(
+        added=[],
+        modified=[Txn()] if access_token == "token-1" else [],
+        removed_ids=["missing-txn"] if access_token == "token-1" else [],
+        next_cursor="cursor-new",
+    )
+
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert existing_id in service.store.deleted_transaction_ids
+    assert service.store.transaction_external_ids["gas-txn"] != existing_id
+    updated = service.store.transactions[service.store.transaction_external_ids["gas-txn"]]
+    assert updated.name == "Gas Station"
+    assert updated.amount == 125

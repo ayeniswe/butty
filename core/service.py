@@ -367,13 +367,29 @@ class Service:
                 if account.plaid_id == plaid_account.id
             }
 
-            transactions, next_cursor = self.plaid_client.retrieve_transactions(
-                p.token, p.cursor
+            sync_result = self.plaid_client.retrieve_transactions(p.token, p.cursor)
+            self.store.update_plaid_account_cursor(
+                plaid_account.id, sync_result.next_cursor
             )
-            self.store.update_plaid_account_cursor(plaid_account.id, next_cursor)
 
             touched_budgets: set[int] = set()
-            for transaction in transactions:
+            for removed_transaction_id in sync_result.removed_ids:
+                existing_transaction_id = (
+                    self.store.select_transaction_id_by_fingerprint_or_external_id(
+                        "", removed_transaction_id
+                    )
+                )
+                if existing_transaction_id is None:
+                    continue
+
+                budget_id = self.store.select_budget_id_for_transaction(
+                    existing_transaction_id
+                )
+                self.store.delete_transaction(existing_transaction_id)
+                if budget_id:
+                    touched_budgets.add(budget_id)
+
+            for transaction in [*sync_result.added, *sync_result.modified]:
                 account = plaid_item_accounts.get(transaction.account_id)
                 if not account:
                     continue
@@ -394,6 +410,20 @@ class Service:
                 fingerprint = Service.__build_transaction_fingerprint(
                     name, amount, direction, date
                 )
+                existing_transaction_id = (
+                    self.store.select_transaction_id_by_fingerprint_or_external_id(
+                        fingerprint, transaction.transaction_id
+                    )
+                )
+                existing_budget_id = None
+                if existing_transaction_id is not None:
+                    existing_budget_id = self.store.select_budget_id_for_transaction(
+                        existing_transaction_id
+                    )
+                    self.store.delete_transaction(existing_transaction_id)
+                    if existing_budget_id:
+                        touched_budgets.add(existing_budget_id)
+
                 transaction_id = self.store.insert_transaction(
                     PartialTransaction(
                         name,
@@ -405,15 +435,8 @@ class Service:
                         occurred_at=date,
                     )
                 )
-
                 if transaction_id is None:
-                    transaction_id = (
-                        self.store.select_transaction_id_by_fingerprint_or_external_id(
-                            fingerprint, transaction.transaction_id
-                        )
-                    )
-                    if transaction_id is None:
-                        continue
+                    continue
 
                 category = getattr(transaction, "personal_finance_category", None)
                 detailed = getattr(category, "detailed", None) if category else None

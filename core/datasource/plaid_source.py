@@ -31,7 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by tests
     TransactionsSyncRequest = None
     Transaction = None
 
-from core.datasource.model import PlaidAccountBase
+from core.datasource.model import PlaidAccountBase, PlaidTransactionSync
 from core.utils import build_fingerprint
 
 
@@ -93,7 +93,7 @@ class Plaid:
 
     def retrieve_transactions(
         self, access_token: str, cursor: str | None = None
-    ) -> tuple[list[Transaction], str | None]:
+    ) -> PlaidTransactionSync:
         # Plaid rejects a None cursor; omit the field entirely on first sync
         request_kwargs = {"access_token": access_token}
         if cursor:
@@ -101,7 +101,13 @@ class Plaid:
 
         request = TransactionsSyncRequest(**request_kwargs)
         response = self.client.transactions_sync(request)
-        transactions = response["added"]
+        added_transactions = list(response["added"])
+        modified_transactions = list(response.get("modified", []))
+        removed_transaction_ids = [
+            txn["transaction_id"]
+            for txn in response.get("removed", [])
+            if txn.get("transaction_id")
+        ]
         next_cursor = response.get("next_cursor")
 
         while response["has_more"]:
@@ -109,10 +115,21 @@ class Plaid:
                 access_token=access_token, cursor=response["next_cursor"]
             )
             response = self.client.transactions_sync(request)
-            transactions += response["added"]
+            added_transactions += response["added"]
+            modified_transactions += response.get("modified", [])
+            removed_transaction_ids += [
+                txn["transaction_id"]
+                for txn in response.get("removed", [])
+                if txn.get("transaction_id")
+            ]
             next_cursor = response.get("next_cursor", next_cursor)
 
-        return transactions, next_cursor
+        return PlaidTransactionSync(
+            added=added_transactions,
+            modified=modified_transactions,
+            removed_ids=removed_transaction_ids,
+            next_cursor=next_cursor,
+        )
 
     def retrieve_accounts(
         self, access_token: str
