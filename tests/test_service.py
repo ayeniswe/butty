@@ -406,19 +406,35 @@ class FakeStore:
         return result
 
     def select_budget_id_by_plaid_category(self, detailed: str):
+        budget_ids = self.select_budget_ids_by_plaid_category(detailed)
+        return budget_ids[0] if budget_ids else None
+
+    def select_budget_ids_by_plaid_category(self, detailed: str):
         category_id = self.plaid_category_lookup.get(detailed)
         if not category_id:
-            return None
-        for budget_id, mapped_ids in self.plaid_mappings_by_budget.items():
-            if category_id in mapped_ids:
-                return budget_id
-        return None
+            return []
+        return sorted(
+            [
+                budget_id
+                for budget_id, mapped_ids in self.plaid_mappings_by_budget.items()
+                if category_id in mapped_ids
+            ],
+            reverse=True,
+        )
 
     def select_budget_id_by_plaid_category_id(self, plaid_category_id: int):
-        for budget_id, mapped_ids in self.plaid_mappings_by_budget.items():
-            if plaid_category_id in mapped_ids:
-                return budget_id
-        return None
+        budget_ids = self.select_budget_ids_by_plaid_category_id(plaid_category_id)
+        return budget_ids[0] if budget_ids else None
+
+    def select_budget_ids_by_plaid_category_id(self, plaid_category_id: int):
+        return sorted(
+            [
+                budget_id
+                for budget_id, mapped_ids in self.plaid_mappings_by_budget.items()
+                if plaid_category_id in mapped_ids
+            ],
+            reverse=True,
+        )
 
     def insert_plaid_account(self, access_token: str, institution_id: str | None = None):
         self.plaid_inserted_token = access_token
@@ -671,6 +687,34 @@ def test_relink_existing_transactions(service):
     service.sync_all_transactions(month=1, year=2024)
 
     assert (7, 10) in service.store.inserted_budget_transactions
+
+
+def test_relink_prefers_current_month_budget_when_category_is_reused(service):
+    txn = Transaction(
+        id=11,
+        name="Restaurant",
+        amount=2000,
+        direction=TransactionDirection.OUT,
+        occurred_at="2024-03-05",
+        account_id=1,
+        external_id="legacy-2",
+        note="",
+        plaid_category_id=4,
+    )
+    service.store.transactions.append(txn)
+
+    service.store.budgets.extend(
+        [
+            Budget(1, "Food Feb", 500, 0, 0, datetime.datetime(2024, 2, 1)),
+            Budget(2, "Food Mar", 500, 0, 0, datetime.datetime(2024, 3, 1)),
+        ]
+    )
+    service.store.plaid_mappings_by_budget = {1: [4], 2: [4]}
+
+    service.sync_all_transactions(month=3, year=2024)
+
+    assert (2, 11) in service.store.inserted_budget_transactions
+    assert (1, 11) not in service.store.inserted_budget_transactions
 
 
 def test_apple_sync(service):

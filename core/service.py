@@ -427,36 +427,47 @@ class Service:
                         transaction_id, category_id
                     )
 
-                
+
+                assigned_to_mapped_budget = False
                 if detailed:
-                    budget_id = self.store.select_budget_id_by_plaid_category(detailed)
-                    if (
-                        budget_id
-                        and self.__occurs_in_month(date, month, year)
-                        and direction == TransactionDirection.OUT
-                        and self.__budget_in_scope(budget_id, month, year)
-                        and not self.store.ignored_budget_transaction_exists(
-                            budget_id, transaction_id
-                        )
-                    ):
-                        self.store.insert_budget_transaction(budget_id, transaction_id)
-                        touched_budgets.add(budget_id)
+                    budget_ids = self.store.select_budget_ids_by_plaid_category(detailed)
+                    for budget_id in budget_ids:
+                        if (
+                            self.__occurs_in_month(date, month, year)
+                            and direction == TransactionDirection.OUT
+                            and self.__budget_in_scope(budget_id, month, year)
+                            and not self.store.ignored_budget_transaction_exists(
+                                budget_id, transaction_id
+                            )
+                        ):
+                            self.store.insert_budget_transaction(
+                                budget_id, transaction_id
+                            )
+                            touched_budgets.add(budget_id)
+                            assigned_to_mapped_budget = True
+                            break
+                    if assigned_to_mapped_budget:
                         continue
 
                 # Fallback: try primary-level match if detailed not mapped
                 if primary:
-                    budget_id = self.store.select_budget_id_by_plaid_category(primary)
-                    if (
-                        budget_id
-                        and self.__occurs_in_month(date, month, year)
-                        and direction == TransactionDirection.OUT
-                        and self.__budget_in_scope(budget_id, month, year)
-                        and not self.store.ignored_budget_transaction_exists(
-                            budget_id, transaction_id
-                        )
-                    ):
-                        self.store.insert_budget_transaction(budget_id, transaction_id)
-                        touched_budgets.add(budget_id)
+                    budget_ids = self.store.select_budget_ids_by_plaid_category(primary)
+                    for budget_id in budget_ids:
+                        if (
+                            self.__occurs_in_month(date, month, year)
+                            and direction == TransactionDirection.OUT
+                            and self.__budget_in_scope(budget_id, month, year)
+                            and not self.store.ignored_budget_transaction_exists(
+                                budget_id, transaction_id
+                            )
+                        ):
+                            self.store.insert_budget_transaction(
+                                budget_id, transaction_id
+                            )
+                            touched_budgets.add(budget_id)
+                            assigned_to_mapped_budget = True
+                            break
+                    if assigned_to_mapped_budget:
                         continue
 
                 tag_budget_id = self.__match_budget_by_transaction_tags(
@@ -491,27 +502,25 @@ class Service:
             if txn_id is None:
                 continue
 
-            budget_id = self.store.select_budget_id_by_plaid_category_id(
+            occurred_at = getattr(txn, "occurred_at", None)
+            budget_ids = self.store.select_budget_ids_by_plaid_category_id(
                 plaid_category_id
             )
-            if not budget_id:
-                continue
-
-            already_mapped = self.store.select_budget_id_for_transaction(txn_id)
-            if already_mapped == budget_id:
-                continue
-
-            occurred_at = getattr(txn, "occurred_at", None)
-            if (
-                self.__occurs_in_month(occurred_at, month, year)
-                and txn.direction == TransactionDirection.OUT
-                and self.__budget_in_scope(budget_id, month, year)
-                and not self.store.ignored_budget_transaction_exists(
-                    budget_id, txn_id
-                )
-            ):
-                self.store.insert_budget_transaction(budget_id, txn_id)
-                touched_budgets.add(budget_id)
+            for budget_id in budget_ids:
+                already_mapped = self.store.select_budget_id_for_transaction(txn_id)
+                if already_mapped == budget_id:
+                    continue
+                if (
+                    self.__occurs_in_month(occurred_at, month, year)
+                    and txn.direction == TransactionDirection.OUT
+                    and self.__budget_in_scope(budget_id, month, year)
+                    and not self.store.ignored_budget_transaction_exists(
+                        budget_id, txn_id
+                    )
+                ):
+                    self.store.insert_budget_transaction(budget_id, txn_id)
+                    touched_budgets.add(budget_id)
+                    break
 
         for budget_id in touched_budgets:
             self.refresh_budget_spent(budget_id)

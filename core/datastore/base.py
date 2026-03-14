@@ -137,6 +137,9 @@ class DataStore(ABC):
     @abstractmethod
     def select_budget_id_by_plaid_category(self, detailed: str) -> int | None: ...
 
+    @abstractmethod
+    def select_budget_ids_by_plaid_category(self, detailed: str) -> list[int]: ...
+
     # -------- Accounts --------
     @abstractmethod
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None: ...
@@ -187,3 +190,8 @@ class DataStore(ABC):
     def select_budget_id_by_plaid_category_id(
         self, plaid_category_id: int
     ) -> int | None: ...
+
+    @abstractmethod
+    def select_budget_ids_by_plaid_category_id(
+        self, plaid_category_id: int
+    ) -> list[int]: ...

@@ -28,3 +28,19 @@ def test_plaid_category_crud(tmp_path: Path):
     assert db.select_budget_id_by_plaid_category("FOOD_RESTAURANT") == 1
     assert db.select_budget_id_by_plaid_category("FOOD") == 1
     assert db.select_budget_id_by_plaid_category_id(cat_id1) == 1
+
+
+def test_plaid_category_lookup_prefers_latest_budget_month(tmp_path: Path):
+    db = Sqlite3(tmp_path / "test.sqlite")
+
+    db.insert_budget("Food - Feb", 100, override_create_date=datetime.datetime(2024, 2, 1))
+    db.insert_budget("Food - Mar", 100, override_create_date=datetime.datetime(2024, 3, 1))
+
+    cat_id = db.upsert_plaid_category("FOOD", "FOOD_RESTAURANT")
+    db.replace_budget_plaid_category_mappings(1, [cat_id])
+    db.replace_budget_plaid_category_mappings(2, [cat_id])
+
+    assert db.select_budget_ids_by_plaid_category("FOOD_RESTAURANT") == [2, 1]
+    assert db.select_budget_id_by_plaid_category("FOOD_RESTAURANT") == 2
+    assert db.select_budget_ids_by_plaid_category_id(cat_id) == [2, 1]
+    assert db.select_budget_id_by_plaid_category_id(cat_id) == 2
