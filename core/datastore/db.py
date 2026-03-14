@@ -506,8 +506,12 @@ class Sqlite3(DataStore):
             return [PlaidCategoryMapping(**dict(row._mapping)) for row in rows]
 
     def select_budget_id_by_plaid_category(self, category_key: str) -> int | None:
+        budget_ids = self.select_budget_ids_by_plaid_category(category_key)
+        return budget_ids[0] if budget_ids else None
+
+    def select_budget_ids_by_plaid_category(self, category_key: str) -> list[int]:
         with self.engine.begin() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 select(self.plaid_category_mappings.c.budget_id)
                 .join(
                     self.plaid_categories,
@@ -518,23 +522,29 @@ class Sqlite3(DataStore):
                     (self.plaid_categories.c.detailed == category_key)
                     | (self.plaid_categories.c.primary == category_key)
                 )
-                .limit(1)
-            ).first()
-            return row.budget_id if row else None
+                .order_by(self.plaid_category_mappings.c.budget_id.desc())
+            ).fetchall()
+            return [row.budget_id for row in rows]
 
     def select_budget_id_by_plaid_category_id(
         self, plaid_category_id: int
     ) -> int | None:
+        budget_ids = self.select_budget_ids_by_plaid_category_id(plaid_category_id)
+        return budget_ids[0] if budget_ids else None
+
+    def select_budget_ids_by_plaid_category_id(
+        self, plaid_category_id: int
+    ) -> list[int]:
         with self.engine.begin() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 select(self.plaid_category_mappings.c.budget_id)
                 .where(
                     self.plaid_category_mappings.c.plaid_category_id
                     == plaid_category_id
                 )
-                .limit(1)
-            ).first()
-            return row.budget_id if row else None
+                .order_by(self.plaid_category_mappings.c.budget_id.desc())
+            ).fetchall()
+            return [row.budget_id for row in rows]
 
     # MARK: - Accounts
     def account_exists_by_fingerprint(self, fingerprint: str) -> int | None:
