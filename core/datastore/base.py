@@ -187,10 +187,16 @@ class DataStore(ABC):
     def delete_budget_transaction(self, budget_id: int, transaction_id: int): ...
 
     @abstractmethod
+    def delete_budget_transactions_for_transaction(self, transaction_id: int): ...
+
+    @abstractmethod
     def retrieve_budget_transactions(self, budget_id: int) -> list[TransactionView]: ...
 
     @abstractmethod
     def select_budget_id_for_transaction(self, transaction_id: int) -> int | None: ...
+
+    @abstractmethod
+    def select_budget_ids_for_transaction(self, transaction_id: int) -> list[int]: ...
 
     @abstractmethod
     def select_budget_id_by_plaid_category_id(

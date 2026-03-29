@@ -681,6 +681,14 @@ class Sqlite3(DataStore):
                 .where(self.budgets_transactions.c.budget_id == budget_id)
             )
 
+    def delete_budget_transactions_for_transaction(self, transaction_id: int):
+        with self.engine.begin() as conn:
+            conn.execute(
+                delete(self.budgets_transactions).where(
+                    self.budgets_transactions.c.transaction_id == transaction_id
+                )
+            )
+
     def retrieve_budget_transactions(self, budget_id: int) -> list[TransactionView]:
         """
         Return all transactions linked to a given budget.
@@ -719,3 +727,12 @@ class Sqlite3(DataStore):
             ).first()
 
             return row.budget_id if row else None
+
+    def select_budget_ids_for_transaction(self, transaction_id: int) -> list[int]:
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                select(self.budgets_transactions.c.budget_id).where(
+                    self.budgets_transactions.c.transaction_id == transaction_id
+                )
+            ).fetchall()
+            return [row.budget_id for row in rows]

@@ -378,6 +378,9 @@ class Service:
                     removed_external_id
                 )
                 if existing_id is not None:
+                    touched_budgets.update(
+                        self.store.select_budget_ids_for_transaction(existing_id)
+                    )
                     self.store.delete_transaction(existing_id)
 
             for transaction in added:
@@ -436,6 +439,10 @@ class Service:
             transaction.transaction_id
         )
         if is_modified and existing_id is not None:
+            previous_budget_ids = self.store.select_budget_ids_for_transaction(existing_id)
+            touched_budgets.update(previous_budget_ids)
+            if previous_budget_ids:
+                self.store.delete_budget_transactions_for_transaction(existing_id)
             self.store.update_transaction(
                 existing_id,
                 PartialTransaction(
