@@ -96,8 +96,20 @@ class DummyPlaidApi:
         self.accounts_requests = []
         self.remove_requests = []
         self.transactions_responses = [
-            {"added": ["t1"], "has_more": True, "next_cursor": "cursor-1"},
-            {"added": ["t2"], "has_more": False, "next_cursor": "cursor-2"},
+            {
+                "added": ["t1"],
+                "modified": ["m1"],
+                "removed": [{"transaction_id": "r1"}],
+                "has_more": True,
+                "next_cursor": "cursor-1",
+            },
+            {
+                "added": ["t2"],
+                "modified": ["m2"],
+                "removed": [{"transaction_id": "r2"}],
+                "has_more": False,
+                "next_cursor": "cursor-2",
+            },
         ]
 
     def link_token_create(self, request):
@@ -258,9 +270,11 @@ def test_add_financial_item_exchanges_token():
 def test_retrieve_transactions_pages_and_aggregates():
     plaid = plaid_source.Plaid()
 
-    transactions, next_cursor = plaid.retrieve_transactions("access-123")
+    added, modified, removed, next_cursor = plaid.retrieve_transactions("access-123")
 
-    assert transactions == ["t1", "t2"]
+    assert added == ["t1", "t2"]
+    assert modified == ["m1", "m2"]
+    assert removed == ["r1", "r2"]
     assert next_cursor == "cursor-2"
     first_request, second_request = plaid.client.sync_requests
     assert first_request.access_token == "access-123"
