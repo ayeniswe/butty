@@ -111,7 +111,7 @@ class FakePlaid:
                     "plaid-credit-acc",
                     Category("FOOD_AND_DRINK", "FOOD_AND_DRINK_COFFEE"),
                 ),
-            ], "cursor-1-new"
+            ], [], [], "cursor-1-new"
 
         return [
             Txn(
@@ -132,7 +132,7 @@ class FakePlaid:
                 "plaid-checking-acc",
                 Category("INCOME", "INCOME_WAGES"),
             ),
-        ], "cursor-2-new"
+        ], [], [], "cursor-2-new"
 
 
 class FakeStore:
@@ -186,6 +186,8 @@ class FakeStore:
         self.updated_account_balances = []
         self.updated_account_display_names = []
         self.ignored_budget_transactions = set()
+        self.updated_transactions = []
+        self.use_static_budget_transactions = True
 
     def insert_budget(self, name, allocated, created_at=None):
         self.inserted_budgets.append((name, allocated, created_at))
@@ -237,6 +239,29 @@ class FakeStore:
         self.budget_updates.append(partial)
 
     def retrieve_budget_transactions(self, budget_id: int):
+        linked_transaction_ids = [
+            txn_id
+            for (linked_budget_id, txn_id) in self.inserted_budget_transactions
+            if linked_budget_id == budget_id
+        ]
+        if not self.use_static_budget_transactions:
+            transactions = []
+            for txn_id in linked_transaction_ids:
+                by_id = next(
+                    (
+                        txn
+                        for txn in self.transactions
+                        if getattr(txn, "id", None) == txn_id
+                    ),
+                    None,
+                )
+                if by_id is not None:
+                    transactions.append(by_id)
+                    continue
+                if 0 <= txn_id < len(self.transactions):
+                    transactions.append(self.transactions[txn_id])
+            return transactions
+
         return [
             Transaction(
                 id=1,
@@ -271,7 +296,11 @@ class FakeStore:
             return self.transaction_external_ids[external_id]
         return self.transaction_fingerprints.get(fingerprint)
 
+    def select_transaction_id_by_external_id(self, external_id: str):
+        return self.transaction_external_ids.get(external_id)
+
     def insert_budget_transaction(self, budget_id: int, transaction_id: int):
+        self.use_static_budget_transactions = False
         self.inserted_budget_transactions.append((budget_id, transaction_id))
 
     def filter_transactions(self, **kwargs):
@@ -296,11 +325,64 @@ class FakeStore:
         self.plaid_category_updates.append((id, plaid_category_id))
         self.transaction_plaid_category_ids[id] = plaid_category_id
 
+    def update_transaction(self, id: int, partial: PartialTransaction):
+        existing = self.transactions[id]
+        updated = Transaction(
+            id=id,
+            name=partial.name,
+            amount=partial.amount,
+            direction=partial.direction,
+            occurred_at=partial.occurred_at,
+            account_id=partial.account_id,
+            external_id=partial.external_id,
+            note=getattr(existing, "note", None),
+            plaid_category_id=self.transaction_plaid_category_ids.get(id),
+        )
+        self.transactions[id] = updated
+        self.transaction_fingerprints[partial.fingerprint] = id
+        if partial.external_id:
+            self.transaction_external_ids[partial.external_id] = id
+        self.updated_transactions.append(id)
+
     def select_budget_id_for_transaction(self, transaction_id: int):
         return self.selected_budget_id
 
     def delete_budget_transaction(self, budget_id: int, transaction_id: int):
         self.deleted_budget_transactions.append((budget_id, transaction_id))
+        self.inserted_budget_transactions = [
+            (b, t)
+            for (b, t) in self.inserted_budget_transactions
+            if not (b == budget_id and t == transaction_id)
+        ]
+
+    def delete_budget_transactions_for_transaction(self, transaction_id: int):
+        self.inserted_budget_transactions = [
+            (b, t) for (b, t) in self.inserted_budget_transactions if t != transaction_id
+        ]
+
+    def select_budget_ids_for_transaction(self, transaction_id: int):
+        return [
+            budget_id
+            for (budget_id, txn_id) in self.inserted_budget_transactions
+            if txn_id == transaction_id
+        ]
+
+    def delete_transaction(self, id: int):
+        transaction = self.transactions[id]
+        external_id = getattr(transaction, "external_id", None)
+        if external_id:
+            self.transaction_external_ids.pop(external_id, None)
+        self.delete_budget_transactions_for_transaction(id)
+        self.transactions[id] = Transaction(
+            id=id,
+            name="__deleted__",
+            amount=0,
+            direction=TransactionDirection.OUT,
+            occurred_at="1970-01-01",
+            account_id=1,
+            external_id=None,
+            note=None,
+        )
 
     def retrieve_plaid_accounts(self):
         return self.plaid_accounts
@@ -630,6 +712,146 @@ def test_plaid_sync_respects_month_scope(service):
     assert service.store.inserted_budget_transactions == []
 
 
+def test_plaid_sync_applies_removed_and_modified(service):
+    # Seed an existing pending transaction that should be removed on sync.
+    seeded = PartialTransaction(
+        name="Pending Card Auth",
+        amount=40,
+        direction=TransactionDirection.OUT,
+        account_id=1,
+        fingerprint="fp-pending",
+        external_id="pending-1",
+        occurred_at=datetime.datetime(2023, 1, 10),
+    )
+    service.store.insert_transaction(seeded)
+
+    class Txn:
+        def __init__(self, amount: float):
+            self.account_id = "plaid-credit-acc"
+            self.amount = amount
+            self.date = datetime.datetime(2023, 1, 10)
+            self.transaction_id = "posted-1"
+            self.merchant_name = "Coffee Shop"
+            self.name = "Coffee Shop"
+            self.personal_finance_category = type(
+                "Cat",
+                (),
+                {
+                    "primary": "FOOD_AND_DRINK",
+                    "detailed": "FOOD_AND_DRINK_COFFEE",
+                },
+            )
+
+    # Added + modified for the same posted transaction should not create duplicates.
+    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: (
+        [Txn(30.00)],
+        [Txn(32.50)],
+        ["pending-1"],
+        "cursor-new",
+    )
+
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert service.store.select_transaction_id_by_external_id("pending-1") is None
+    posted_ids = [
+        idx
+        for idx, txn in enumerate(service.store.transactions)
+        if getattr(txn, "external_id", None) == "posted-1"
+    ]
+    assert len(posted_ids) == 1
+    assert posted_ids[0] in service.store.updated_transactions
+
+
+def test_plaid_modified_clears_stale_budget_links(service):
+    service.store.budgets = [
+        Budget(1, "Coffee", 1000, 0, 0, datetime.datetime(2023, 1, 1)),
+        Budget(2, "Rent", 1000, 0, 0, datetime.datetime(2023, 1, 1)),
+    ]
+    service.store.plaid_category_lookup = {
+        "FOOD_AND_DRINK_COFFEE": 1,
+        "RENT_AND_UTILITIES_RENT": 2,
+    }
+    service.store.plaid_mappings_by_budget = {1: [1], 2: [2]}
+
+    txn_id = service.store.insert_transaction(
+        PartialTransaction(
+            name="Coffee Shop",
+            amount=30,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-modified-original",
+            external_id="mod-1",
+            occurred_at=datetime.datetime(2023, 1, 10),
+        )
+    )
+    service.store.insert_budget_transaction(1, txn_id)
+
+    class Txn:
+        def __init__(self):
+            self.account_id = "plaid-credit-acc"
+            self.amount = 32.5
+            self.date = datetime.datetime(2023, 1, 10)
+            self.transaction_id = "mod-1"
+            self.merchant_name = "Landlord"
+            self.name = "Landlord"
+            self.personal_finance_category = type(
+                "Cat",
+                (),
+                {
+                    "primary": "RENT_AND_UTILITIES",
+                    "detailed": "RENT_AND_UTILITIES_RENT",
+                },
+            )
+
+    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: (
+        [],
+        [Txn()],
+        [],
+        "cursor-new",
+    )
+
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert (1, txn_id) not in service.store.inserted_budget_transactions
+    assert (2, txn_id) in service.store.inserted_budget_transactions
+    refreshed_budget_ids = {update.id for update in service.store.budget_updates}
+    assert 1 in refreshed_budget_ids
+    assert 2 in refreshed_budget_ids
+
+
+def test_plaid_removed_refreshes_budget_spent(service):
+    service.store.budgets = [
+        Budget(1, "Credit Card", 1000, 0, 0, datetime.datetime(2023, 1, 1))
+    ]
+    txn_id = service.store.insert_transaction(
+        PartialTransaction(
+            name="Card Purchase",
+            amount=40,
+            direction=TransactionDirection.OUT,
+            account_id=1,
+            fingerprint="fp-removed",
+            external_id="removed-1",
+            occurred_at=datetime.datetime(2023, 1, 10),
+        )
+    )
+    service.store.insert_budget_transaction(1, txn_id)
+
+    service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: (
+        [],
+        [],
+        ["removed-1"],
+        "cursor-new",
+    )
+
+    service.sync_all_transactions(month=1, year=2023)
+
+    assert service.store.select_transaction_id_by_external_id("removed-1") is None
+    latest_budget_update = next(
+        update for update in reversed(service.store.budget_updates) if update.id == 1
+    )
+    assert latest_budget_update.amount_spent == 0
+
+
 def test_sync_links_only_outgoing(service):
     # Make one incoming transaction category mapped; should not be linked
     class Txn:
@@ -649,6 +871,8 @@ def test_sync_links_only_outgoing(service):
     # Override retrieve_transactions to return a crafted IN transaction
     service.plaid_client.retrieve_transactions = lambda access_token, cursor=None: (
         [Txn(TransactionDirection.IN)],
+        [],
+        [],
         "c-new",
     )
 

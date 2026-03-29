@@ -49,6 +49,9 @@ class DataStore(ABC):
     def update_transaction_plaid_category(self, id: int, plaid_category_id: int): ...
 
     @abstractmethod
+    def update_transaction(self, id: int, obj: PartialTransaction): ...
+
+    @abstractmethod
     def insert_transaction(self, obj: PartialTransaction) -> int | None: ...
 
     @abstractmethod
@@ -61,6 +64,9 @@ class DataStore(ABC):
     def select_transaction_id_by_fingerprint_or_external_id(
         self, fingerprint: str, external_id: str | None
     ) -> int | None: ...
+
+    @abstractmethod
+    def select_transaction_id_by_external_id(self, external_id: str) -> int | None: ...
 
     @abstractmethod
     def retrieve_transactions(self) -> list[TransactionView]: ...
@@ -181,10 +187,16 @@ class DataStore(ABC):
     def delete_budget_transaction(self, budget_id: int, transaction_id: int): ...
 
     @abstractmethod
+    def delete_budget_transactions_for_transaction(self, transaction_id: int): ...
+
+    @abstractmethod
     def retrieve_budget_transactions(self, budget_id: int) -> list[TransactionView]: ...
 
     @abstractmethod
     def select_budget_id_for_transaction(self, transaction_id: int) -> int | None: ...
+
+    @abstractmethod
+    def select_budget_ids_for_transaction(self, transaction_id: int) -> list[int]: ...
 
     @abstractmethod
     def select_budget_id_by_plaid_category_id(
