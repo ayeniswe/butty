@@ -367,125 +367,166 @@ class Service:
                 if account.plaid_id == plaid_account.id
             }
 
-            transactions, next_cursor = self.plaid_client.retrieve_transactions(
+            added, modified, removed, next_cursor = self.plaid_client.retrieve_transactions(
                 p.token, p.cursor
             )
             self.store.update_plaid_account_cursor(plaid_account.id, next_cursor)
 
             touched_budgets: set[int] = set()
-            for transaction in transactions:
-                account = plaid_item_accounts.get(transaction.account_id)
-                if not account:
-                    continue
-
-                # Depends on enrichment and not guranteed but ideal
-                merchant_name = transaction.merchant_name
-                name = merchant_name if merchant_name else transaction.name
-
-                amount = abs(transaction.amount)
-                date = transaction.date
-                direction = (
-                    TransactionDirection.OUT
-                    if transaction.amount > 0
-                    else TransactionDirection.IN
+            for removed_external_id in removed:
+                existing_id = self.store.select_transaction_id_by_external_id(
+                    removed_external_id
                 )
-                # NOTE
-                # All transactions should be stored as cents
-                fingerprint = Service.__build_transaction_fingerprint(
-                    name, amount, direction, date
-                )
-                transaction_id = self.store.insert_transaction(
-                    PartialTransaction(
-                        name,
-                        amount,
-                        direction,
-                        account.id,
-                        fingerprint,
-                        external_id=transaction.transaction_id,
-                        occurred_at=date,
-                    )
+                if existing_id is not None:
+                    self.store.delete_transaction(existing_id)
+
+            for transaction in added:
+                self.__sync_single_plaid_transaction(
+                    transaction=transaction,
+                    plaid_item_accounts=plaid_item_accounts,
+                    touched_budgets=touched_budgets,
+                    month=month,
+                    year=year,
                 )
 
-                if transaction_id is None:
-                    transaction_id = (
-                        self.store.select_transaction_id_by_fingerprint_or_external_id(
-                            fingerprint, transaction.transaction_id
-                        )
-                    )
-                    if transaction_id is None:
-                        continue
-
-                category = getattr(transaction, "personal_finance_category", None)
-                detailed = getattr(category, "detailed", None) if category else None
-                primary = getattr(category, "primary", None) if category else None
-                category_id = None
-
-                if detailed and primary:
-                    category_id = self.store.upsert_plaid_category(primary, detailed)
-                    # Always persist category on the transaction for future reference
-                    self.store.update_transaction_plaid_category(
-                        transaction_id, category_id
-                    )
-
-
-                assigned_to_mapped_budget = False
-                if detailed:
-                    budget_ids = self.store.select_budget_ids_by_plaid_category(detailed)
-                    for budget_id in budget_ids:
-                        if (
-                            self.__occurs_in_month(date, month, year)
-                            and direction == TransactionDirection.OUT
-                            and self.__budget_in_scope(budget_id, month, year)
-                            and not self.store.ignored_budget_transaction_exists(
-                                budget_id, transaction_id
-                            )
-                        ):
-                            self.store.insert_budget_transaction(
-                                budget_id, transaction_id
-                            )
-                            touched_budgets.add(budget_id)
-                            assigned_to_mapped_budget = True
-                            break
-                    if assigned_to_mapped_budget:
-                        continue
-
-                # Fallback: try primary-level match if detailed not mapped
-                if primary:
-                    budget_ids = self.store.select_budget_ids_by_plaid_category(primary)
-                    for budget_id in budget_ids:
-                        if (
-                            self.__occurs_in_month(date, month, year)
-                            and direction == TransactionDirection.OUT
-                            and self.__budget_in_scope(budget_id, month, year)
-                            and not self.store.ignored_budget_transaction_exists(
-                                budget_id, transaction_id
-                            )
-                        ):
-                            self.store.insert_budget_transaction(
-                                budget_id, transaction_id
-                            )
-                            touched_budgets.add(budget_id)
-                            assigned_to_mapped_budget = True
-                            break
-                    if assigned_to_mapped_budget:
-                        continue
-
-                tag_budget_id = self.__match_budget_by_transaction_tags(
-                    name, date, month, year
+            for transaction in modified:
+                self.__sync_single_plaid_transaction(
+                    transaction=transaction,
+                    plaid_item_accounts=plaid_item_accounts,
+                    touched_budgets=touched_budgets,
+                    month=month,
+                    year=year,
+                    is_modified=True,
                 )
-                if (
-                    tag_budget_id
-                    and self.__occurs_in_month(date, month, year)
-                    and direction == TransactionDirection.OUT
-                    and not self.store.ignored_budget_transaction_exists(
-                        tag_budget_id, transaction_id
-                    )
-                ):
-                    self.store.insert_budget_transaction(tag_budget_id, transaction_id)
-                    touched_budgets.add(tag_budget_id)
 
             for budget_id in touched_budgets:
                 self.refresh_budget_spent(budget_id)
+
+    def __sync_single_plaid_transaction(
+        self,
+        transaction,
+        plaid_item_accounts: dict,
+        touched_budgets: set[int],
+        month: int | None = None,
+        year: int | None = None,
+        is_modified: bool = False,
+    ):
+        account = plaid_item_accounts.get(transaction.account_id)
+        if not account:
+            return
+
+        # Depends on enrichment and not guranteed but ideal
+        merchant_name = transaction.merchant_name
+        name = merchant_name if merchant_name else transaction.name
+
+        amount = abs(transaction.amount)
+        date = transaction.date
+        direction = (
+            TransactionDirection.OUT
+            if transaction.amount > 0
+            else TransactionDirection.IN
+        )
+        # NOTE
+        # All transactions should be stored as cents
+        fingerprint = Service.__build_transaction_fingerprint(
+            name, amount, direction, date
+        )
+
+        existing_id = self.store.select_transaction_id_by_external_id(
+            transaction.transaction_id
+        )
+        if is_modified and existing_id is not None:
+            self.store.update_transaction(
+                existing_id,
+                PartialTransaction(
+                    name,
+                    amount,
+                    direction,
+                    account.id,
+                    fingerprint,
+                    external_id=transaction.transaction_id,
+                    occurred_at=date,
+                ),
+            )
+            transaction_id = existing_id
+        else:
+            transaction_id = self.store.insert_transaction(
+                PartialTransaction(
+                    name,
+                    amount,
+                    direction,
+                    account.id,
+                    fingerprint,
+                    external_id=transaction.transaction_id,
+                    occurred_at=date,
+                )
+            )
+
+            if transaction_id is None:
+                transaction_id = self.store.select_transaction_id_by_fingerprint_or_external_id(
+                    fingerprint, transaction.transaction_id
+                )
+                if transaction_id is None:
+                    return
+
+        category = getattr(transaction, "personal_finance_category", None)
+        detailed = getattr(category, "detailed", None) if category else None
+        primary = getattr(category, "primary", None) if category else None
+
+        if detailed and primary:
+            category_id = self.store.upsert_plaid_category(primary, detailed)
+            # Always persist category on the transaction for future reference
+            self.store.update_transaction_plaid_category(transaction_id, category_id)
+
+        assigned_to_mapped_budget = False
+        if detailed:
+            budget_ids = self.store.select_budget_ids_by_plaid_category(detailed)
+            for budget_id in budget_ids:
+                if (
+                    self.__occurs_in_month(date, month, year)
+                    and direction == TransactionDirection.OUT
+                    and self.__budget_in_scope(budget_id, month, year)
+                    and not self.store.ignored_budget_transaction_exists(
+                        budget_id, transaction_id
+                    )
+                ):
+                    self.store.insert_budget_transaction(budget_id, transaction_id)
+                    touched_budgets.add(budget_id)
+                    assigned_to_mapped_budget = True
+                    break
+            if assigned_to_mapped_budget:
+                return
+
+        # Fallback: try primary-level match if detailed not mapped
+        if primary:
+            budget_ids = self.store.select_budget_ids_by_plaid_category(primary)
+            for budget_id in budget_ids:
+                if (
+                    self.__occurs_in_month(date, month, year)
+                    and direction == TransactionDirection.OUT
+                    and self.__budget_in_scope(budget_id, month, year)
+                    and not self.store.ignored_budget_transaction_exists(
+                        budget_id, transaction_id
+                    )
+                ):
+                    self.store.insert_budget_transaction(budget_id, transaction_id)
+                    touched_budgets.add(budget_id)
+                    assigned_to_mapped_budget = True
+                    break
+            if assigned_to_mapped_budget:
+                return
+
+        tag_budget_id = self.__match_budget_by_transaction_tags(name, date, month, year)
+        if (
+            tag_budget_id
+            and self.__occurs_in_month(date, month, year)
+            and direction == TransactionDirection.OUT
+            and not self.store.ignored_budget_transaction_exists(
+                tag_budget_id, transaction_id
+            )
+        ):
+            self.store.insert_budget_transaction(tag_budget_id, transaction_id)
+            touched_budgets.add(tag_budget_id)
 
     def __relink_transactions_to_mapped_budgets(
         self, month: int | None = None, year: int | None = None

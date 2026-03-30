@@ -49,6 +49,9 @@ class DataStore(ABC):
     def update_transaction_plaid_category(self, id: int, plaid_category_id: int): ...
 
     @abstractmethod
+    def update_transaction(self, id: int, obj: PartialTransaction): ...
+
+    @abstractmethod
     def insert_transaction(self, obj: PartialTransaction) -> int | None: ...
 
     @abstractmethod
@@ -61,6 +64,9 @@ class DataStore(ABC):
     def select_transaction_id_by_fingerprint_or_external_id(
         self, fingerprint: str, external_id: str | None
     ) -> int | None: ...
+
+    @abstractmethod
+    def select_transaction_id_by_external_id(self, external_id: str) -> int | None: ...
 
     @abstractmethod
     def retrieve_transactions(self) -> list[TransactionView]: ...
