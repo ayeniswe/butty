@@ -93,7 +93,7 @@ class Plaid:
 
     def retrieve_transactions(
         self, access_token: str, cursor: str | None = None
-    ) -> tuple[list[Transaction], str | None]:
+    ) -> tuple[list[Transaction], list[Transaction], list[str], str | None]:
         # Plaid rejects a None cursor; omit the field entirely on first sync
         request_kwargs = {"access_token": access_token}
         if cursor:
@@ -101,7 +101,9 @@ class Plaid:
 
         request = TransactionsSyncRequest(**request_kwargs)
         response = self.client.transactions_sync(request)
-        transactions = response["added"]
+        added = list(response["added"])
+        modified = list(response["modified"])
+        removed = [r["transaction_id"] for r in response["removed"]]
         next_cursor = response.get("next_cursor")
 
         while response["has_more"]:
@@ -109,10 +111,12 @@ class Plaid:
                 access_token=access_token, cursor=response["next_cursor"]
             )
             response = self.client.transactions_sync(request)
-            transactions += response["added"]
+            added += response["added"]
+            modified += response["modified"]
+            removed += [r["transaction_id"] for r in response["removed"]]
             next_cursor = response.get("next_cursor", next_cursor)
 
-        return transactions, next_cursor
+        return added, modified, removed, next_cursor
 
     def retrieve_accounts(
         self, access_token: str

@@ -101,6 +101,13 @@ app.mount("/static", StaticFiles(directory="apps/web/static"), name="static")
 # MARK: Shared Helpers
 
 
+def _template_response(name: str, context: dict) -> HTMLResponse:
+    request = context.get("request")
+    return templates.TemplateResponse(request, name, context)
+
+# MARK: Shared Helpers
+
+
 def _base_context(service: Service) -> dict:
     return {"summary": service.summary_card}
 
@@ -177,7 +184,7 @@ def _explorer_response(
     year: int | None = None,
     plaid_notice: dict[str, str] | None = None,
 ):
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/explorer/index.html",
         {
             "request": request,
@@ -195,7 +202,7 @@ def _budget_lines_response(
 ) -> HTMLResponse:
     mth_ctx = _month_context(month, year)
     overview = service.get_budget_overview(mth_ctx["current_month"], mth_ctx["year"])
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget_lines.html",
         {
             "request": request,
@@ -218,7 +225,7 @@ def read_root(
     month: int | None = Query(None),
     year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "index.html",
         {"request": request, **_month_context(month, year), **_base_context(service)},
     )
@@ -231,7 +238,7 @@ def dashboard(
     month: int | None = Query(None),
     year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/dashboard.html",
         {"request": request, **_month_context(month, year), **_base_context(service)},
     )
@@ -241,7 +248,7 @@ def dashboard(
 def summary_card(
     request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/summary_card.html", {"request": request, **_base_context(service)}
     )
 
@@ -288,7 +295,7 @@ def explorer_search(
         "query": query,
         **_base_context(service),
     }
-    return templates.TemplateResponse("partials/explorer/search.html", context)
+    return _template_response("partials/explorer/search.html", context)
 
 
 # MARK: - Budget CRUD
@@ -346,7 +353,7 @@ def budget(
 ) -> HTMLResponse:
     service.refresh_budget_spent(id)
     budget = service.get_budget(id)
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/index.html",
         {
             "request": request,
@@ -377,7 +384,7 @@ def budget_update(
 
     budget = service.get_budget(id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/index.html",
         {
             "request": request,
@@ -417,7 +424,7 @@ def budget_edit(
         value = budget.name
     else:
         value = cents_to_dollars(budget.amount_allocated)
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/edit.html",
         {
             "request": request,
@@ -441,7 +448,7 @@ def budget_transactions(
     year: int | None = Query(None),
 ) -> HTMLResponse:
     budget_spent = service.refresh_budget_spent(id)
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/transactions.html",
         {
             "request": request,
@@ -467,7 +474,7 @@ def create_budget_transaction(
     service.create_budget_transaction(id, name, amount, account_id, date)
     budget_spent = service.refresh_budget_spent(id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/transactions.html",
         {
             "request": request,
@@ -494,7 +501,7 @@ def update_budget_transaction_note(
     service.update_transaction_note(transaction_id, note)
     budget_spent = service.refresh_budget_spent(id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/transactions.html",
         {
             "request": request,
@@ -517,7 +524,7 @@ def budget_transaction_delete(
     service.unassign_transaction_to_budget(id, transaction_id)
     budget_spent = service.refresh_budget_spent(id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/transactions.html",
         {
             "request": request,
@@ -539,7 +546,7 @@ def budget_tags(
     month: int = Query(...),
     year: int | None = Query(None),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/tags.html",
         {
             "request": request,
@@ -561,7 +568,7 @@ def create_budget_tag(
     tag_id = tag_id if tag_id else service.create_tag(name)
     service.assign_tag_to_budget(id, tag_id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/tags.html",
         {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
     )
@@ -576,7 +583,7 @@ def budget_tag_delete(
 ) -> HTMLResponse:
     service.unassign_tag_from_budget(id, tag_id)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/tags.html",
         {"request": request, "id": id, "tags": service.get_all_budget_tags(id)},
     )
@@ -590,7 +597,7 @@ def tag_search(
     query: str = Query(None),
 ) -> HTMLResponse:
     tags = service.search_tags(query) if query else []
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/tag/search.html",
         {"request": request, "tags": tags, "id": id, "query": query},
     )
@@ -605,7 +612,7 @@ def budget_plaid_mappings(
     year: int | None = Query(None),
     show_add: bool = Query(False),
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/categorization.html",
         {
             "request": request,
@@ -629,7 +636,7 @@ def budget_update_plaid_mappings(
 ) -> HTMLResponse:
     service.set_budget_plaid_category_mappings(id, plaid_categories)
 
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/budget/categorization.html",
         {
             "request": request,
@@ -654,7 +661,7 @@ def context_menu_budgets(
     year: int | None = Query(None),
 ) -> HTMLResponse:
     mth_ctx = _month_context(month, year)
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/explorer/context_menu_budgets.html",
         {
             "request": request,
@@ -822,7 +829,7 @@ def sync_transactions_apple_webhook(
 def link_by_plaid(
     request: Request, service: Annotated[Service, Depends(get_service)]
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _template_response(
         "partials/plaid_button.html",
         {"request": request, "link_token": service.get_plaid_token()},
     )

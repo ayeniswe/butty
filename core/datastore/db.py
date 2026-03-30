@@ -226,6 +226,21 @@ class Sqlite3(DataStore):
                 .where(self.transactions.c.id == id)
             )
 
+    def update_transaction(self, id: int, obj: PartialTransaction):
+        with self.engine.begin() as conn:
+            values = {
+                "name": obj.name,
+                "amount": dollars_to_cents(obj.amount),
+                "direction": obj.direction,
+                "account_id": obj.account_id,
+                "fingerprint": obj.fingerprint,
+                "external_id": obj.external_id,
+                "occurred_at": obj.occurred_at.isoformat() if obj.occurred_at else None,
+            }
+            conn.execute(
+                update(self.transactions).values(values).where(self.transactions.c.id == id)
+            )
+
     def delete_transaction(self, id: int):
         with self.engine.begin() as conn:
             conn.execute(delete(self.transactions).where(self.transactions.c.id == id))
@@ -249,6 +264,15 @@ class Sqlite3(DataStore):
                 condition = self.transactions.c.fingerprint == fingerprint
             row = conn.execute(
                 select(self.transactions.c.id).where(condition)
+            ).fetchone()
+            return row[0] if row else None
+
+    def select_transaction_id_by_external_id(self, external_id: str) -> int | None:
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(self.transactions.c.id).where(
+                    self.transactions.c.external_id == external_id
+                )
             ).fetchone()
             return row[0] if row else None
 
